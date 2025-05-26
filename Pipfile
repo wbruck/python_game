@@ -1,0 +1,20 @@
+[[source]]
+url = "https://pypi.org/simple"
+verify_ssl = true
+name = "pypi"
+
+[packages]
+# Add project dependencies here
+
+[dev-packages]
+pytest = ">=7.0.0"
+pytest-cov = ">=4.0.0"
+flake8 = ">=6.0.0"
+
+[requires]
+python_version = "3.11"
+
+[scripts]
+test = "pytest"
+lint = "flake8"
+coverage = "pytest --cov=game tests/"
