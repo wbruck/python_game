@@ -96,6 +96,28 @@ class Board:
         self._object_positions[obj] = Position(x, y)
         return True
     
+    def get_units_in_range(self, x: int, y: int, range_: int) -> List[object]:
+        """
+        Get all units within a specified range of a position.
+        
+        Args:
+            x (int): Center x-coordinate
+            y (int): Center y-coordinate
+            range_ (int): Vision range to check
+            
+        Returns:
+            List[object]: List of units found within range
+        """
+        units = []
+        for dy in range(-range_, range_ + 1):
+            for dx in range(-range_, range_ + 1):
+                check_x, check_y = x + dx, y + dy
+                if self.is_valid_position(check_x, check_y):
+                    obj = self.get_object(check_x, check_y)
+                    if obj is not None and hasattr(obj, 'alive'):  # Check if object is a unit
+                        units.append(obj)
+        return units
+
     def remove_object(self, x: int, y: int) -> Optional[object]:
         """
         Remove an object from the specified position.

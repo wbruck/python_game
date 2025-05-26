@@ -38,15 +38,14 @@ def setup_game(config):
     
     # Helper function to place a unit at a random empty position
     def place_unit_randomly(unit_class):
+        """Place a unit at a random empty position using place_object."""
         while True:
             x = random.randint(0, board_width - 1)
             y = random.randint(0, board_height - 1)
-            if board.get_object(x, y) is None:
-                unit = unit_class(x, y)
-                board.place_object(unit, x, y)
+            unit = unit_class(x=x, y=y)
+            if board.place_object(unit, x, y):
                 game_loop.add_unit(unit)
                 return unit
-    
     # Place predators
     for _ in range(unit_counts.get("predator", 0)):
         place_unit_randomly(Predator)

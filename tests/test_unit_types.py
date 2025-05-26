@@ -59,9 +59,9 @@ def test_experience_system():
 def test_unit_behaviors(board, predator, scavenger, grazer):
     """Test that units exhibit their specialized behaviors."""
     # Place units on board
-    board.place_unit(predator, predator.x, predator.y)
-    board.place_unit(scavenger, scavenger.x, scavenger.y)
-    board.place_unit(grazer, grazer.x, grazer.y)
+    board.place_object(predator, predator.x, predator.y)
+    board.place_object(scavenger, scavenger.x, scavenger.y)
+    board.place_object(grazer, grazer.x, grazer.y)
     
     # Test predator hunting behavior
     initial_energy = predator.energy
@@ -76,7 +76,7 @@ def test_unit_behaviors(board, predator, scavenger, grazer):
     # Test scavenger behavior with dead unit
     dead_unit = Grazer(x=4, y=4)
     dead_unit.alive = False
-    board.place_unit(dead_unit, dead_unit.x, dead_unit.y)
+    board.place_object(dead_unit, dead_unit.x, dead_unit.y)
     scavenger_pos = (scavenger.x, scavenger.y)
     scavenger.update(board)
     assert (scavenger.x, scavenger.y) != scavenger_pos  # Should move toward dead unit

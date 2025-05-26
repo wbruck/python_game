@@ -89,8 +89,10 @@ class GameLoop:
         """
         Run the game loop until it completes or is stopped.
         """
+        self.is_running = True  # Ensure is_running is set
         while self.is_running and self.current_turn < self.max_turns:
             self.process_turn()
+        self.is_running = False
             
     def process_turn(self):
         """
@@ -114,12 +116,16 @@ class GameLoop:
                 vision_modifier = 0.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
                 energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
                 
+                # Update vision based on time of day
+                if hasattr(unit, 'base_vision'):
+                    unit.vision = int(unit.base_vision * vision_modifier)
+                
                 # Update unit with current conditions
-                unit.vision = int(unit.base_vision * vision_modifier)
                 unit.update(self.board)
                 
                 # Apply energy costs based on time of day
-                unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
+                if hasattr(unit, 'energy'):
+                    unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
         
         # Process dead units (decay)
         dead_units = [unit for unit in self.units if not unit.alive]
@@ -176,9 +182,15 @@ class GameLoop:
         """
         Apply global environmental effects based on current conditions.
         """
-        # This method can be extended to apply additional environmental effects
-        # Currently, the effects are applied directly in process_turn
-        pass
+        # Apply effects to all units
+        for unit in self.units:
+            if hasattr(unit, 'apply_environmental_effects'):
+                unit.apply_environmental_effects()
+        
+        # Apply effects to all plants
+        for plant in self.plants:
+            if hasattr(plant, 'apply_environmental_effects'):
+                plant.apply_environmental_effects()
 
     def get_stats(self):
         """
@@ -192,14 +204,22 @@ class GameLoop:
         decaying_units = len([unit for unit in self.units if not unit.alive and unit.state == "decaying"])
         
         stats = {
-            "turn": self.current_turn,
+            "current_turn": self.current_turn,
+            "turn": self.current_turn,  # Backward compatibility
             "max_turns": self.max_turns,
             "alive_units": alive_units,
+            "living_units": alive_units,  # Test requirement
             "dead_units": dead_units,
-            "plants": len(self.plants),  # Just return the count as expected by tests
             "units": {
+                "total": len(self.units),
+                "alive": alive_units,
+                "dead": dead_units,
                 "decaying": decaying_units
             },
+            "plants": len(self.plants),
+            "plant_count": len(self.plants),
+            "time_of_day": self.time_of_day.value,
+            "season": self.season.value,
             "environment": {
                 "time_of_day": self.time_of_day.value,
                 "season": self.season.value,
@@ -207,14 +227,7 @@ class GameLoop:
                 "season_length": self.season_length,
                 "next_cycle_change": self.day_night_cycle_length - (self.current_turn % self.day_night_cycle_length),
                 "next_season_change": self.season_length - (self.current_turn % self.season_length)
-            },
-            "units": {
-                "total": len(self.units),
-                "alive": alive_units,
-                "dead": dead_units,
-                "decaying": decaying_units
-            },
-            "plants": len(self.plants)  # Return just the count as expected by tests
+            }
         }
         
         return stats
