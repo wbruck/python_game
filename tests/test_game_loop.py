@@ -105,10 +105,15 @@ def test_environmental_effects(game_loop):
     unit = Mock()
     unit.alive = True
     unit.base_vision = 10
-    unit.energy = 100
+    unit.energy = 100.0  # Use float for energy
+    unit.update = Mock()  # Add mock for update
     unit.apply_environmental_effects = Mock()
+
     plant = Mock()
     plant.base_growth_rate = 1.0
+    plant.energy = 100.0  # Use float for energy
+    plant.min_energy = 50.0  # Use float for min_energy
+    plant.update = Mock()  # Add mock for update
     plant.apply_environmental_effects = Mock()
     
     game_loop.units = [unit]
@@ -138,6 +143,8 @@ def test_vision_changes(game_loop):
     unit.alive = True
     unit.base_vision = 10
     unit.vision = 10
+    unit.energy = 100.0  # Add float energy value
+    unit.update = Mock()  # Add mock for update method
     game_loop.units = [unit]
 
     # Test vision during day

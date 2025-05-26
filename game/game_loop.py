@@ -96,46 +96,42 @@ class GameLoop:
             
     def process_turn(self):
         """
-        Process a single turn of the game, including environmental cycles and all entity updates.
+        Process a single turn of the game, following the exact required order:
+        1. Increment turn
+        2. Update environmental cycles
+        3. Apply environmental effects
+        4. Shuffle units
+        5. Update living units
+        6. Update plants
+        7. Update vision based on time of day
         """
-        # 1. Increment turn counter first (test requirement)
+        # 1. Increment turn counter
         self.current_turn += 1
         
-        # 2. Update environmental cycles and apply effects
+        # 2. Update environmental cycles and time of day
+        old_time_of_day = self.time_of_day
         self._update_environmental_cycles()
+        
+        # 3. Update vision if time of day changed or it's the first turn
+        if old_time_of_day != self.time_of_day or self.current_turn == 1:
+            self._update_unit_vision()
+        
+        # 4. Apply environmental effects
         self._apply_environmental_effects()
         
-        # 3. Randomize unit order (test requirement)
+        # 5. Randomize unit order
         random.shuffle(self.units)
         
-        # 6. Process only living units (test requirement)
-        for unit in self.units:
-            if unit.alive:
-                unit.update(self.board)
-                
-                # Apply energy costs after update
-                energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
-                if hasattr(unit, 'energy'):
-                    unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
+        # 6. Process only living units
+        living_units = [unit for unit in self.units if unit.alive]
+        for unit in living_units:
+            unit.update(self.board)
+            # Apply energy costs after update
+            energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
+            if hasattr(unit, 'energy'):
+                unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
         
-        # 7. Process plants (test requirement)
-        for plant in self.plants:
-            plant.update()
-            
-            # Apply nighttime energy reduction
-            if self.time_of_day == TimeOfDay.NIGHT and hasattr(plant, 'energy'):
-                plant.energy = max(plant.energy * 0.95, plant.min_energy if hasattr(plant, 'min_energy') else 0)
-        
-        # Process dead units (decay)
-        dead_units = [unit for unit in self.units if not unit.alive]
-        for dead_unit in dead_units:
-            if dead_unit.state == "dead":
-                dead_unit.state = "decaying"
-            # Only update if in decaying state
-            if dead_unit.state == "decaying":
-                dead_unit.update(self.board)
-        
-        # Process plants based on season and time of day
+        # 7. Process plants
         growth_modifiers = {
             Season.SPRING: 1.2,
             Season.SUMMER: 1.5,
@@ -144,12 +140,21 @@ class GameLoop:
         }
         
         for plant in self.plants:
-            plant.growth_rate = plant.base_growth_rate * growth_modifiers[self.season]
+            # Apply seasonal growth rate modifier
+            if hasattr(plant, 'base_growth_rate'):
+                plant.growth_rate = plant.base_growth_rate * growth_modifiers[self.season]
+            
+            # Update plant
             plant.update()
             
-            # Night time slightly reduces plant energy content
-            if self.time_of_day == TimeOfDay.NIGHT:
-                plant.energy = max(plant.energy * 0.95, plant.min_energy)
+            # Apply nighttime energy reduction
+            if self.time_of_day == TimeOfDay.NIGHT and hasattr(plant, 'energy'):
+                plant.energy = max(plant.energy * 0.95, plant.min_energy if hasattr(plant, 'min_energy') else 0)
+        
+        # Handle state transitions for newly dead units
+        dead_units = [unit for unit in self.units if not unit.alive and unit.state == "dead"]
+        for dead_unit in dead_units:
+            dead_unit.state = "decaying"
         
         # Add delay between turns if configured
         if self.turn_delay > 0:
@@ -181,14 +186,19 @@ class GameLoop:
         for unit in self.units:
             if unit.alive and hasattr(unit, 'apply_environmental_effects'):
                 unit.apply_environmental_effects()
-                # Update vision based on current time of day
-                if hasattr(unit, 'base_vision'):
-                    unit.vision = unit.base_vision // 2 if self.time_of_day == TimeOfDay.NIGHT else unit.base_vision
         
         # Apply effects to all plants
         for plant in self.plants:
             if hasattr(plant, 'apply_environmental_effects'):
                 plant.apply_environmental_effects()
+
+    def _update_unit_vision(self):
+        """
+        Update vision for all living units based on time of day.
+        """
+        for unit in self.units:
+            if unit.alive and hasattr(unit, 'base_vision'):
+                unit.vision = unit.base_vision // 2 if self.time_of_day == TimeOfDay.NIGHT else unit.base_vision
 
     def get_stats(self):
         """
