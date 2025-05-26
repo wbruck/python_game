@@ -7,6 +7,7 @@ It supports JSON-based configuration files with default values and runtime reloa
 
 import json
 import os
+import copy
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 class Config:
@@ -94,7 +95,7 @@ class Config:
             config_path (str): Path to the configuration file.
         """
         self.config_path = config_path
-        self.config = dict(self.DEFAULT_CONFIG)  # Start with defaults
+        self.config = copy.deepcopy(self.DEFAULT_CONFIG)  # Deep copy to ensure no shared references
         self.change_listeners: List[Callable[[str, str, Any], None]] = []
         self.load_config()
         
@@ -111,7 +112,10 @@ class Config:
                     file_config = json.load(f)
                     # Validate and update config with values from file
                     self._validate_config(file_config)
-                    self._update_config(self.config, file_config)
+                    # Update each section separately to maintain proper section tracking
+                    for section in file_config:
+                        if section in self.config:
+                            self._update_config(self.config[section], file_config[section], section)
                     print(f"Configuration loaded from {self.config_path}")
             else:
                 print(f"Config file {self.config_path} not found. Using default values.")
@@ -171,22 +175,29 @@ class Config:
             if "max" in schema_ref and value > schema_ref["max"]:
                 raise ValueError(f"Value for {section}.{key} above maximum: {value} > {schema_ref['max']}")
 
-    def _update_config(self, target: Dict, source: Dict) -> None:
+    def _update_config(self, target: Dict, source: Dict, section: str = None) -> None:
         """
         Recursively update nested dictionaries.
         
         Args:
             target: The target dictionary to update.
             source: The source dictionary with new values.
+            section: Current configuration section being updated.
         """
         for key, value in source.items():
+            if section is None:
+                # Top level - key is the section
+                current_section = key
+            else:
+                current_section = section
+
             if key in target and isinstance(target[key], dict) and isinstance(value, dict):
-                self._update_config(target[key], value)
+                self._update_config(target[key], value, current_section)
             else:
                 target[key] = value
                 # Notify listeners if this is a leaf value
                 if not isinstance(value, dict):
-                    self._notify_change(key, value)
+                    self._notify_change(current_section, key, value)
 
     def add_change_listener(self, listener: Callable[[str, str, Any], None]) -> None:
         """
