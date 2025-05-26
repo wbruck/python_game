@@ -242,19 +242,29 @@ class Unit:
         if not self.alive or self.state in ["dead", "decaying"]:
             return False
             
-        # Check unit state
-        if not self.alive or self.state in ["dead", "decaying"]:
-            return False
-
         # Validate food source
         if food is None:
             return False
             
-        # Check food type
-        valid_food = (
-            hasattr(food, "energy_value") or 
-            (isinstance(food, Unit) and not food.alive and food.state == "dead")
-        )
+        # Check eating unit's state first
+        if not self.alive or self.state in ["dead", "decaying"]:
+            return False
+
+        # Check food type and conditions
+        valid_food = False
+        if hasattr(food, "energy_value"):
+            valid_food = True
+        elif isinstance(food, Unit) and not food.alive:
+            # Initialize decay properties if needed
+            if not hasattr(food, 'decay_stage'):
+                food.decay_stage = 0
+            if not hasattr(food, 'decay_energy') or food.decay_energy is None:
+                food.decay_energy = food.energy
+            if food.decay_energy > 0:
+                valid_food = True
+                # Ensure food is marked as dead
+                food.state = "dead"
+            
         if not valid_food:
             return False
             
@@ -328,6 +338,7 @@ class Unit:
             target.hp = 0
             target.alive = False
             target.state = "dead"
+            target.decay_stage = 0
             target.decay_energy = target.energy  # Initialize decay energy
             
         return damage
@@ -341,7 +352,7 @@ class Unit:
             board (Board): The game board.
         """
         # Check for death first
-        if self.hp <= 0:
+        if self.hp <= 0 and self.alive:  # Only initialize decay on new death
             self.hp = 0
             self.alive = False
             self.state = "dead"
@@ -350,28 +361,37 @@ class Unit:
             return
             
         if not self.alive:
-            # Handle decay process for dead units
-            if self.state == "dead":
-                self.decay_stage += 1  # Only increment decay stage in dead state
-                decay_rate = 0.1  # 10% decay per turn
-                self.decay_energy *= (1 - decay_rate)
-                if self.decay_stage > 5:  # Transition to decaying state after 5 turns
-                    self.state = "decaying"
-            # If already in decaying state, just maintain the current stage
-            return
+            decay_rate = 0.1  # 10% decay per turn
+            # Always increment decay stage for dead units
+            self.decay_stage += 1
+            self.decay_energy *= (1 - decay_rate)
             
-        # Track state duration
-        if self.state == self.last_state:
-            self.state_duration += 1
-        else:
-            self.state_duration = 0
-            self.last_state = self.state
+            # After 5 turns of being dead, transition to decaying
+            if self.decay_stage > 5 and self.state == "dead":
+                self.state = "decaying"
+            return
             
         # Reset stat modifiers
         self.strength = self.base_strength
         self.speed = self.base_speed
         self.vision = self.base_vision
         
+        # Handle state duration limits before anything else
+        if (self.state_duration > 10 and 
+            self.state not in ["dead", "decaying", "resting", "wandering"] and 
+            self.energy > self.max_energy * 0.4 and 
+            self.hp > self.max_hp * 0.3):
+            self.state = "wandering"
+            self.state_duration = 0
+            return
+
+        # Track state duration
+        if self.state == self.last_state:
+            self.state_duration += 1
+        else:
+            self.state_duration = 0
+            self.last_state = self.state
+
         # State transitions based on conditions
         if self.energy < self.max_energy * 0.2:
             self.state = "resting"
@@ -384,13 +404,6 @@ class Unit:
             self.state = "wandering"
         elif self.state == "feeding" and self.energy > self.max_energy * 0.9:
             self.state = "wandering"
-        # Handle state duration limit first
-        if (self.state_duration > 10 and 
-            self.state not in ["dead", "decaying", "resting"] and 
-            self.energy > self.max_energy * 0.4 and 
-            self.hp > self.max_hp * 0.3):
-            self.state = "wandering"
-            self.state_duration = 0
             
         # Apply state-specific effects
         if self.state == "hunting":
