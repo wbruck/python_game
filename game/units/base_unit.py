@@ -104,6 +104,26 @@ class Unit:
         }
         
 
+    def _consume(self, target) -> int:
+        """
+        Consume another unit or plant for energy.
+        
+        Args:
+            target: The unit or plant to consume
+            
+        Returns:
+            int: Amount of energy gained from consumption
+        """
+        if hasattr(target, 'decay_energy'):
+            energy_gained = target.decay_energy
+            target.decay_energy = 0
+            return energy_gained
+        elif hasattr(target, 'energy'):
+            energy_gained = target.energy
+            target.energy = 0
+            return energy_gained
+        return 0
+
     def gain_experience(self, action_type, amount=1):
         """
         Grant experience points to the unit based on successful actions.

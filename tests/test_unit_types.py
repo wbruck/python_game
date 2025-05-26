@@ -4,7 +4,8 @@ from game.board import Board
 
 @pytest.fixture
 def board():
-    return Board(width=10, height=10)
+    from game.board import MovementType
+    return Board(width=10, height=10, movement_type=MovementType.DIAGONAL)
 
 @pytest.fixture
 def predator():
@@ -74,7 +75,7 @@ def test_unit_behaviors(board, predator, scavenger, grazer):
     assert (grazer.x, grazer.y) != grazer_pos  # Should have moved away from predator
     
     # Test scavenger behavior with dead unit
-    dead_unit = Grazer(x=4, y=4)
+    dead_unit = Grazer(x=2, y=2)  # Place dead unit where it won't collide with predator
     dead_unit.alive = False
     board.place_object(dead_unit, dead_unit.x, dead_unit.y)
     scavenger_pos = (scavenger.x, scavenger.y)
