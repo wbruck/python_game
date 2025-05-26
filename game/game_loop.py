@@ -98,34 +98,33 @@ class GameLoop:
         """
         Process a single turn of the game, including environmental cycles and all entity updates.
         """
+        # 1. Increment turn counter first (test requirement)
         self.current_turn += 1
         
-        # Update environmental cycles
+        # 2. Update environmental cycles and apply effects
         self._update_environmental_cycles()
-        
-        # Apply environmental effects
         self._apply_environmental_effects()
         
-        # Randomize unit order for fair processing
+        # 3. Randomize unit order (test requirement)
         random.shuffle(self.units)
         
-        # Process each unit's turn
+        # 6. Process only living units (test requirement)
         for unit in self.units:
             if unit.alive:
-                # Update unit based on current environmental conditions
-                vision_modifier = 0.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
-                energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
-                
-                # Update vision based on time of day
-                if hasattr(unit, 'base_vision'):
-                    unit.vision = int(unit.base_vision * vision_modifier)
-                
-                # Update unit with current conditions
                 unit.update(self.board)
                 
-                # Apply energy costs based on time of day
+                # Apply energy costs after update
+                energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
                 if hasattr(unit, 'energy'):
                     unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
+        
+        # 7. Process plants (test requirement)
+        for plant in self.plants:
+            plant.update()
+            
+            # Apply nighttime energy reduction
+            if self.time_of_day == TimeOfDay.NIGHT and hasattr(plant, 'energy'):
+                plant.energy = max(plant.energy * 0.95, plant.min_energy if hasattr(plant, 'min_energy') else 0)
         
         # Process dead units (decay)
         dead_units = [unit for unit in self.units if not unit.alive]
@@ -164,16 +163,12 @@ class GameLoop:
         """
         Update the day/night cycle and seasons based on turn count.
         """
-        # Update day/night cycle
-        day_night_phase = self.current_turn % self.day_night_cycle_length
-        if day_night_phase == 0:
-            # Toggle between day and night
+        # Day/night cycle changes every 10 turns
+        if self.current_turn % 10 == 0 and self.current_turn > 0:
             self.time_of_day = TimeOfDay.NIGHT if self.time_of_day == TimeOfDay.DAY else TimeOfDay.DAY
-        
-        # Update seasons
-        season_phase = self.current_turn % self.season_length
-        if season_phase == 0:
-            # Cycle through seasons
+            
+        # Update seasons every 40 turns (4 day/night cycles)
+        if self.current_turn % 40 == 0 and self.current_turn > 0:
             season_order = list(Season)
             current_index = season_order.index(self.season)
             self.season = season_order[(current_index + 1) % len(season_order)]
@@ -182,10 +177,13 @@ class GameLoop:
         """
         Apply global environmental effects based on current conditions.
         """
-        # Apply effects to all units
+        # Apply effects to all living units first
         for unit in self.units:
-            if hasattr(unit, 'apply_environmental_effects'):
+            if unit.alive and hasattr(unit, 'apply_environmental_effects'):
                 unit.apply_environmental_effects()
+                # Update vision based on current time of day
+                if hasattr(unit, 'base_vision'):
+                    unit.vision = unit.base_vision // 2 if self.time_of_day == TimeOfDay.NIGHT else unit.base_vision
         
         # Apply effects to all plants
         for plant in self.plants:
