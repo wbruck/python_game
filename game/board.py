@@ -49,6 +49,7 @@ class Board:
         self.grid = [[None for _ in range(width)] for _ in range(height)]
         self.movement_type = movement_type
         self._object_positions: Dict[object, Position] = {}  # Track object positions
+        self.random = random.Random()  # Create a dedicated random number generator
         
         # Define movement vectors based on movement type
         self.movement_vectors = [
@@ -77,6 +78,22 @@ class Board:
         """
         return 0 <= x < self.width and 0 <= y < self.height
     
+
+    def get_object(self, x: int, y: int) -> Optional[object]:
+        """
+        Get the object at the specified position.
+        
+        Args:
+            x (int): The x-coordinate.
+            y (int): The y-coordinate.
+            
+        Returns:
+            Optional[object]: The object at the position, or None if empty.
+        """
+        if not self.is_valid_position(x, y):
+            return None
+        return self.grid[y][x]
+
     def place_object(self, obj: object, x: int, y: int) -> bool:
         """
         Place an object on the board at the specified position.
@@ -265,6 +282,12 @@ class Board:
         self.grid[to_y][to_x] = obj
         self.grid[from_y][from_x] = None
         self._object_positions[obj] = Position(to_x, to_y)
+        
+        # Update the object's own coordinates if it has them
+        if hasattr(obj, 'x') and hasattr(obj, 'y'):
+            obj.x = to_x
+            obj.y = to_y
+        
         return True
 
     def get_available_moves(self, x: int, y: int) -> List[Position]:
@@ -287,6 +310,57 @@ class Board:
             if self.is_valid_position(new_x, new_y) and self.grid[new_y][new_x] is None:
                 valid_moves.append(Position(new_x, new_y))
         return valid_moves
+
+    def move_unit(self, unit: object, dx: int, dy: int) -> bool:
+        """
+        Move a unit by a relative offset from its current position.
+        
+        Args:
+            unit: The unit to move
+            dx (int): The x-direction offset (-1, 0, or 1)
+            dy (int): The y-direction offset (-1, 0, or 1)
+            
+        Returns:
+            bool: True if the move was successful, False otherwise.
+        """
+        current_pos = self.get_object_position(unit)
+        print(f"Moving unit from position: {current_pos}")
+        if current_pos is None:
+            print("Unit not found on board")
+            return False
+            
+        target_x = current_pos.x + dx
+        target_y = current_pos.y + dy
+        print(f"Attempting to move to: ({target_x}, {target_y})")
+        
+        success = self.move_object(current_pos.x, current_pos.y, target_x, target_y)
+        if success:
+            print(f"Move successful, new position: {self.get_object_position(unit)}")
+        else:
+            print("Move failed")
+        return success
+
+    def get_plants_in_range(self, x: int, y: int, range_: int) -> List[object]:
+        """
+        Get all plants within a specified range of a position.
+        
+        Args:
+            x (int): Center x-coordinate
+            y (int): Center y-coordinate
+            range_ (int): Range to check
+            
+        Returns:
+            List[object]: List of plants found within range
+        """
+        plants = []
+        for dy in range(-range_, range_ + 1):
+            for dx in range(-range_, range_ + 1):
+                check_x, check_y = x + dx, y + dy
+                if self.is_valid_position(check_x, check_y):
+                    obj = self.get_object(check_x, check_y)
+                    if obj is not None and hasattr(obj, 'growth_rate'):  # Check if object is a plant
+                        plants.append(obj)
+        return plants
 
     def place_random_plants(self, num_plants: int, plant_factory) -> List[Position]:
         """
