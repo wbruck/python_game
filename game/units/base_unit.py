@@ -173,12 +173,16 @@ class Unit:
         if not board.is_valid_position(new_x, new_y) or board.get_object(new_x, new_y) is not None:
             return False
         
-        # Calculate energy cost based on state and movement
-        base_cost = abs(dx) + abs(dy)
-        state_multiplier = 2.0 if self.state == "fleeing" else 1.0
-        energy_cost = max(2, int(base_cost * state_multiplier))  # Minimum energy cost of 2
+        # Calculate energy cost based on state and movement (fixed cost of 1 per space)
+        energy_cost = 1  # Base cost of 1 per move regardless of distance
+        if self.state == "fleeing":
+            energy_cost = 2  # Double cost when fleeing
         
-        # Check for sufficient energy
+        # Check for sufficient energy - need at least 2 energy to move
+        if self.energy < 2:  # Minimum energy requirement
+            return False
+        
+        # Check if we can afford the movement cost
         if self.energy < energy_cost:
             return False
             
@@ -191,8 +195,6 @@ class Unit:
         self.y = new_y
         self.energy -= energy_cost
         return True
-        
-        return False
     
     def look(self, board):
         """
@@ -227,7 +229,8 @@ class Unit:
                             visible_objects.append((obj, x, y, distance))
         
         # Sort by distance for easier priority assessment
-        return sorted(visible_objects, key=lambda x: x[3])
+        # Convert to expected format (obj, x, y) without distance
+        return [(obj, x, y) for obj, x, y, _ in sorted(visible_objects, key=lambda x: x[3])]
     
     def eat(self, food):
         """

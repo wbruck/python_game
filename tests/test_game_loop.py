@@ -51,14 +51,24 @@ def test_process_turn(mock_shuffle, game_loop):
     # Set up mocks
     unit1 = Mock()
     unit1.alive = True
-    unit1.base_vision = 10  # Add numeric base_vision
-    unit1.energy = 100  # Add numeric energy since we do arithmetic with it
+    unit1.base_vision = 10
+    unit1.vision = 10
+    unit1.energy = 100.0  # Use float for energy
+    unit1.state = "idle"
+    unit1.update = Mock()  # Add explicit mock for update
+    unit1.apply_environmental_effects = Mock()
+    
     unit2 = Mock()
     unit2.alive = False
     unit2.decay_stage = 0
+    unit2.state = "decaying"
+    unit2.update = Mock()  # Add explicit mock for update
+    unit2.apply_environmental_effects = Mock()
     
     plant = Mock()
-    plant.base_growth_rate = 1.0  # Add numeric base_growth_rate since we do arithmetic with it
+    plant.base_growth_rate = 1.0
+    plant.update = Mock()
+    plant.apply_environmental_effects = Mock()
     
     game_loop.units = [unit1, unit2]
     game_loop.plants = [plant]
@@ -96,8 +106,10 @@ def test_environmental_effects(game_loop):
     unit.alive = True
     unit.base_vision = 10
     unit.energy = 100
+    unit.apply_environmental_effects = Mock()
     plant = Mock()
     plant.base_growth_rate = 1.0
+    plant.apply_environmental_effects = Mock()
     
     game_loop.units = [unit]
     game_loop.plants = [plant]
