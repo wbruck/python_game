@@ -159,6 +159,7 @@ def test_feeding_mechanics():
     # Test eating dead unit
     dead_unit = Unit(0, 0, energy=100)
     dead_unit.alive = False
+    dead_unit.state = "dead"  # Explicitly set state
     dead_unit.decay_stage = 1
     dead_unit.decay_energy = 80
     
@@ -184,6 +185,11 @@ def test_feeding_mechanics():
     assert unit.eat(plant) is False, "Decaying units should not eat"
     assert unit.state == "decaying", "State should remain decaying"
     
+    # Reset unit to living state for final test
+    unit.alive = True
+    unit.state = "idle"
+    unit.energy = 50
+
     # Test dead unit consumption
     dead_unit = Unit(1, 0, energy=80)
     dead_unit.alive = False
