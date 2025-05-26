@@ -126,7 +126,9 @@ class GameLoop:
         for dead_unit in dead_units:
             if dead_unit.state == "dead":
                 dead_unit.state = "decaying"
-            dead_unit.update(self.board)
+            # Only update if in decaying state
+            if dead_unit.state == "decaying":
+                dead_unit.update(self.board)
         
         # Process plants based on season and time of day
         growth_modifiers = {
@@ -192,6 +194,12 @@ class GameLoop:
         stats = {
             "turn": self.current_turn,
             "max_turns": self.max_turns,
+            "alive_units": alive_units,
+            "dead_units": dead_units,
+            "plants": len(self.plants),  # Just return the count as expected by tests
+            "units": {
+                "decaying": decaying_units
+            },
             "environment": {
                 "time_of_day": self.time_of_day.value,
                 "season": self.season.value,
@@ -206,15 +214,7 @@ class GameLoop:
                 "dead": dead_units,
                 "decaying": decaying_units
             },
-            "plants": {
-                "total": len(self.plants),
-                "growth_modifier": {
-                    Season.SPRING.value: 1.2,
-                    Season.SUMMER.value: 1.5,
-                    Season.AUTUMN.value: 0.8,
-                    Season.WINTER.value: 0.3
-                }[self.season.value]
-            }
+            "plants": len(self.plants)  # Return just the count as expected by tests
         }
         
         return stats

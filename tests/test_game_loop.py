@@ -7,8 +7,7 @@ This module contains unit tests for the GameLoop class and its functionality.
 import unittest
 from unittest.mock import Mock, patch
 
-from game.game_loop import GameLoop
-
+from game.game_loop import GameLoop, TimeOfDay, Season
 class TestGameLoop(unittest.TestCase):
     """Test cases for the GameLoop class."""
     
@@ -69,11 +68,14 @@ class TestGameLoop(unittest.TestCase):
         # Set up mocks
         unit1 = Mock()
         unit1.alive = True
+        unit1.base_vision = 10  # Add numeric base_vision
+        unit1.energy = 100  # Add numeric energy since we do arithmetic with it
         unit2 = Mock()
         unit2.alive = False
         unit2.decay_stage = 0
         
         plant = Mock()
+        plant.base_growth_rate = 1.0  # Add numeric base_growth_rate since we do arithmetic with it
         
         self.game_loop.units = [unit1, unit2]
         self.game_loop.plants = [plant]
@@ -110,6 +112,7 @@ class TestGameLoop(unittest.TestCase):
         unit = Mock()
         unit.alive = True
         unit.base_vision = 10
+        unit.energy = 100  # Set energy as a number since we do arithmetic with it
         plant = Mock()
         plant.base_growth_rate = 1.0
         plant.min_energy = 50
