@@ -169,28 +169,26 @@ def test_get_stats(game_loop):
 
 def test_run(game_loop):
     """Test running the game loop."""
-    # Mock process_turn to avoid actual processing
+    # Test normal completion
     game_loop.process_turn = Mock()
     game_loop.max_turns = 5
-    
-    # Run the game loop
     game_loop.run()
-    
-    # Verify process_turn was called max_turns times
     assert game_loop.process_turn.call_count == 5
 
-    # Test early stopping
-    game_loop.process_turn.reset_mock()
+    # Test early stopping - create a new mock
+    game_loop.process_turn = Mock()
     game_loop.max_turns = 10
+    game_loop.current_turn = 0
     game_loop.is_running = True
     
-    def stop_after_3(*args):
-        game_loop.current_turn += 1
-        if game_loop.current_turn >= 3:
+    # Set up the mock to stop after 3 calls
+    calls = 0
+    def count_calls(*args):
+        nonlocal calls
+        calls += 1
+        if calls >= 3:
             game_loop.stop()
     
-    game_loop.process_turn.side_effect = stop_after_3
+    game_loop.process_turn.side_effect = count_calls
     game_loop.run()
-    
-    # Should have stopped after 3 turns
     assert game_loop.process_turn.call_count == 3
