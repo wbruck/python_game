@@ -63,6 +63,19 @@ Or check code coverage:
 pipenv run coverage
 ```
 
+#### Running or Excluding Integration Tests
+
+Integration tests are marked with `@pytest.mark.integration`.
+
+- To run only integration tests:
+  ```
+  pipenv run pytest -m integration
+  ```
+- To run only unit tests (exclude integration tests):
+  ```
+  pipenv run pytest -m "not integration"
+  ```
+
 ## Project Structure
 
 ```
