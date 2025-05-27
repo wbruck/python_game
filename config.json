@@ -1,0 +1,33 @@
+{
+    "board": {
+        "width": 30,
+        "height": 25,
+        "allow_diagonal_movement": true
+    },
+    "game": {
+        "max_turns": 500,
+        "turn_delay": 0.2
+    },
+    "units": {
+        "initial_count": {
+            "predator": 5,
+            "scavenger": 8,
+            "grazer": 12
+        },
+        "energy_consumption": {
+            "move": 1,
+            "attack": 3,
+            "look": 0
+        },
+        "decay_rate": 0.15
+    },
+    "plants": {
+        "initial_count": 25,
+        "growth_rate": 0.08,
+        "max_count": 50
+    },
+    "environment": {
+        "day_night_cycle": true,
+        "cycle_length": 30
+    }
+}
