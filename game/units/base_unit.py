@@ -1,0 +1,410 @@
+"""
+Base Unit module for the ecosystem simulation game.
+
+This module implements the base Unit class with fundamental RPG-style stats and behaviors.
+All other unit types will inherit from this base class.
+"""
+
+# Predefined unit templates for different roles
+UNIT_TEMPLATES = {
+    "predator": {
+        "hp": 100,
+        "energy": 120,
+        "strength": 15,
+        "speed": 2,
+        "vision": 6
+    },
+    "scavenger": {
+        "hp": 80,
+        "energy": 100,
+        "strength": 8,
+        "speed": 3,
+        "vision": 8
+    },
+    "grazer": {
+        "hp": 120,
+        "energy": 150,
+        "strength": 5,
+        "speed": 1,
+        "vision": 4
+    }
+}
+
+class Unit:
+    """
+    Base class for all units in the ecosystem simulation.
+    
+    This class implements the core attributes and behaviors common to all units,
+    including stats, movement, and basic interactions. Units follow a state machine
+    pattern for decision making and have sophisticated combat and energy mechanics.
+    
+    States:
+    - idle: Default state, minimal energy consumption
+    - hunting: Actively seeking prey, increased vision range
+    - fleeing: Running from danger, increased speed but higher energy cost
+    - feeding: Consuming food, vulnerable but regenerating energy
+    - wandering: Exploring the environment, normal energy consumption
+    - resting: Recovering energy, cannot move
+    - dead: No actions possible, begins decay process
+    - decaying: Gradually losing energy content that can be consumed by others
+    """
+    
+    def __init__(self, x, y, unit_type=None, hp=100, energy=100, strength=10, speed=1, vision=5):
+        """
+        Initialize a new unit with the given attributes.
+        
+        Args:
+            x (int): Initial x-coordinate on the board.
+            y (int): Initial y-coordinate on the board.
+            hp (int): Health points. Unit dies when this reaches 0.
+            energy (int): Energy for movement and actions. Replenished by eating.
+            strength (int): Determines damage in combat.
+            speed (int): Affects movement range per turn.
+            vision (int): How far the unit can see.
+        """
+        # Use template if unit_type is provided
+        if unit_type and unit_type in UNIT_TEMPLATES:
+            template = UNIT_TEMPLATES[unit_type]
+            hp = template["hp"]
+            energy = template["energy"]
+            strength = template["strength"]
+            speed = template["speed"]
+            vision = template["vision"]
+
+        self.x = x
+        self.y = y
+        self.hp = hp
+        self.max_hp = hp
+        self.energy = energy
+        self.max_energy = energy
+        self.strength = strength
+        self.base_strength = strength  # Store base value for state modifications
+        self.speed = speed
+        self.base_speed = speed  # Store base value for state modifications
+        self.vision = vision
+        self.base_vision = vision  # Store base value for state modifications
+        
+        # Core state attributes
+        self.state = "idle"
+        self.alive = True
+        self.decay_stage = 0  # 0 means not decaying (alive)
+        self.decay_energy = energy  # Energy available when consumed as food
+        self.last_state = None  # For tracking state transitions
+        self.state_duration = 0  # Turns spent in current state
+        
+        # Evolution and experience system
+        self.experience = 0
+        self.level = 1
+        self.traits = set()  # Set of acquired traits through evolution
+        self.successful_actions = {
+            "combat": 0,     # Successful attacks
+            "feeding": 0,    # Successfully consumed food
+            "fleeing": 0,    # Successfully escaped danger
+            "hunting": 0     # Successfully tracked and found prey
+        }
+        
+
+    def gain_experience(self, action_type, amount=1):
+        """
+        Grant experience points to the unit based on successful actions.
+        
+        Args:
+            action_type (str): Type of action ('combat', 'feeding', 'fleeing', 'hunting')
+            amount (int): Amount of experience to grant, defaults to 1
+        """
+        if action_type in self.successful_actions:
+            self.successful_actions[action_type] += amount
+            self.experience += amount
+            
+            # Check for level up (every 10 experience points)
+            if self.experience >= self.level * 10:
+                self.level_up()
+    
+    def level_up(self):
+        """
+        Level up the unit, improving stats and potentially gaining new traits.
+        """
+        self.level += 1
+        
+        # Determine specialization based on most successful actions
+        max_action = max(self.successful_actions.items(), key=lambda x: x[1])[0]
+        
+        # Apply stat improvements based on specialization
+        if max_action == "combat":
+            self.strength = int(self.base_strength * (1 + 0.1 * (self.level - 1)))
+            self.traits.add("battle_hardened")
+        elif max_action == "feeding":
+            self.max_energy = int(self.max_energy * (1 + 0.1 * (self.level - 1)))
+            self.traits.add("efficient_digestion")
+        elif max_action == "fleeing":
+            self.speed = int(self.base_speed * (1 + 0.1 * (self.level - 1)))
+            self.traits.add("swift_escape")
+        elif max_action == "hunting":
+            self.vision = int(self.base_vision * (1 + 0.1 * (self.level - 1)))
+            self.traits.add("keen_senses")
+            
+        # Recover HP and energy on level up
+        self.hp = self.max_hp
+        self.energy = self.max_energy
+
+    def move(self, dx, dy, board):
+        """
+        Move the unit by the given delta if possible.
+        
+        Args:
+            dx (int): The change in x-coordinate.
+            dy (int): The change in y-coordinate.
+            board (Board): The game board.
+            
+        Returns:
+            bool: True if the move was successful, False otherwise.
+        """
+        if not self.alive or self.state in ["dead", "decaying", "resting", "feeding"]:
+            return False
+
+        new_x = self.x + dx
+        new_y = self.y + dy
+        
+        # Validate movement based on speed
+        if abs(dx) + abs(dy) > self.speed:
+            return False
+        
+        # Check if movement is possible
+        if not board.is_valid_position(new_x, new_y) or board.get_object(new_x, new_y) is not None:
+            return False
+        
+        # Calculate energy cost based on state and movement
+        base_cost = abs(dx) + abs(dy)
+        state_multiplier = 2.0 if self.state == "fleeing" else 1.0
+        energy_cost = max(2, int(base_cost * state_multiplier))  # Minimum energy cost of 2
+        
+        # Check for sufficient energy
+        if self.energy < energy_cost:
+            return False
+            
+        # Check if movement is possible
+        if not board.move_object(self.x, self.y, new_x, new_y):
+            return False
+            
+        # Apply movement and energy cost
+        self.x = new_x
+        self.y = new_y
+        self.energy -= energy_cost
+        return True
+        
+        return False
+    
+    def look(self, board):
+        """
+        Scan surroundings to find other units, plants, and obstacles using optimized
+        field of view calculations.
+        
+        Args:
+            board (Board): The game board.
+            
+        Returns:
+            list: A list of visible objects with their positions and distances, sorted by distance.
+        """
+        if not self.alive:
+            return []
+
+        # Calculate vision range based on state - cache common multipliers
+        vision_multipliers = {"hunting": 1.5, "fleeing": 1.2}
+        vision_range = int(self.vision * vision_multipliers.get(self.state, 1.0))
+        
+        # Get visible positions using board's optimized field of view calculation
+        visible_positions = board.calculate_field_of_view(self.x, self.y, vision_range)
+        
+        # Efficiently collect objects from visible positions
+        visible_objects = []
+        for pos in visible_positions:
+            obj = board.grid[pos.y][pos.x]  # Direct grid access for performance
+            if obj is not None and obj is not self:
+                distance = abs(pos.x - self.x) + abs(pos.y - self.y)
+                visible_objects.append((obj, pos.x, pos.y, distance))
+        
+        # Use faster sorting for small lists
+        if len(visible_objects) <= 32:  # Typical vision range produces small lists
+            return self._insertion_sort_by_distance(visible_objects)
+        return sorted(visible_objects, key=lambda x: x[3])
+        
+    def _insertion_sort_by_distance(self, objects):
+        """Efficient sorting for small lists of visible objects."""
+        for i in range(1, len(objects)):
+            key = objects[i]
+            j = i - 1
+            while j >= 0 and objects[j][3] > key[3]:
+                objects[j + 1] = objects[j]
+                j -= 1
+            objects[j + 1] = key
+        return objects
+    
+    def eat(self, food):
+        """
+        Consume food (plant or dead unit) to gain energy.
+        
+        Args:
+            food: The food object to eat.
+            
+        Returns:
+            bool: True if the unit successfully ate, False otherwise.
+        """
+        if not self.alive or self.state in ["dead", "decaying"]:
+            return False
+            
+        # Check unit state
+        if not self.alive or self.state in ["dead", "decaying"]:
+            return False
+
+        # Validate food source
+        if food is None:
+            return False
+            
+        # Check food type
+        valid_food = (
+            hasattr(food, "energy_value") or 
+            (isinstance(food, Unit) and not food.alive and food.state == "dead")
+        )
+        if not valid_food:
+            return False
+            
+        # Check energy capacity
+        if self.energy >= self.max_energy:
+            return False
+            
+        # Calculate energy gain
+        if isinstance(food, Unit) and not food.alive:
+            if food.decay_energy <= 0:
+                return False
+            energy_available = food.decay_energy
+            absorption_rate = 0.8  # 80% efficiency for consuming dead units
+            gained_energy = min(
+                energy_available,
+                self.max_energy - self.energy
+            ) * absorption_rate
+            food.decay_energy = 0  # Consume all decay energy
+        else:
+            energy_available = food.energy_value
+            absorption_rate = 1.0  # 100% efficiency for plants
+            gained_energy = min(
+                energy_available,
+                self.max_energy - self.energy
+            ) * absorption_rate
+            
+        self.energy += gained_energy
+        
+        # Only change state if we're alive and not in a restricted state
+        if self.alive and self.state not in ["dead", "decaying"]:
+            self.last_state = self.state
+            self.state = "feeding"
+            self.state_duration = 0
+        
+        return True
+    
+    def attack(self, target):
+        """
+        Attack another unit.
+        
+        Args:
+            target (Unit): The unit to attack.
+            
+        Returns:
+            int: The amount of damage dealt.
+        """
+        if not self.alive or not target.alive or self.state in ["dead", "decaying", "feeding"]:
+            return 0
+            
+        # Calculate base damage
+        damage = max(1, self.strength)
+        
+        # Apply state modifiers
+        if self.state == "hunting":
+            damage *= 1.5
+        elif self.state == "fleeing":
+            damage *= 0.5
+            
+        # Energy cost for attacking
+        energy_cost = 2
+        if self.energy < energy_cost:
+            return 0
+            
+        self.energy -= energy_cost
+        
+        # Apply damage
+        target.hp -= damage
+        
+        # Check if target died
+        if target.hp <= 0:
+            target.hp = 0
+            target.alive = False
+            target.state = "dead"
+            target.decay_energy = target.energy  # Initialize decay energy
+            
+        return damage
+    
+    def update(self, board):
+        """
+        Update the unit's state based on its surroundings and internal state.
+        Implements a sophisticated state machine for decision making.
+        
+        Args:
+            board (Board): The game board.
+        """
+        # Check for death first
+        if self.hp <= 0:
+            self.hp = 0
+            self.alive = False
+            self.state = "dead"
+            self.decay_stage = 0
+            self.decay_energy = self.energy
+            return
+            
+        if not self.alive:
+            # Handle decay process for dead units
+            if self.state == "dead":
+                self.decay_stage += 1  # Only increment decay stage in dead state
+                decay_rate = 0.1  # 10% decay per turn
+                self.decay_energy *= (1 - decay_rate)
+                if self.decay_stage > 5:  # Transition to decaying state after 5 turns
+                    self.state = "decaying"
+            # If already in decaying state, just maintain the current stage
+            return
+            
+        # Track state duration
+        if self.state == self.last_state:
+            self.state_duration += 1
+        else:
+            self.state_duration = 0
+            self.last_state = self.state
+            
+        # Reset stat modifiers
+        self.strength = self.base_strength
+        self.speed = self.base_speed
+        self.vision = self.base_vision
+        
+        # State transitions based on conditions
+        if self.energy < self.max_energy * 0.2:
+            self.state = "resting"
+        elif self.hp < self.max_hp * 0.3:
+            self.state = "fleeing"
+            self.speed = int(self.base_speed * 1.5) + 1  # Speed boost when fleeing, ensure at least +1
+        elif self.energy < self.max_energy * 0.4:
+            self.state = "feeding"
+        elif self.state == "resting" and self.energy > self.max_energy * 0.8:
+            self.state = "wandering"
+        elif self.state == "feeding" and self.energy > self.max_energy * 0.9:
+            self.state = "wandering"
+        # Handle state duration limit first
+        if (self.state_duration > 10 and 
+            self.state not in ["dead", "decaying", "resting"] and 
+            self.energy > self.max_energy * 0.4 and 
+            self.hp > self.max_hp * 0.3):
+            self.state = "wandering"
+            self.state_duration = 0
+            
+        # Apply state-specific effects
+        if self.state == "hunting":
+            self.strength = int(self.base_strength * 1.2)
+            self.vision = int(self.base_vision * 1.5)
+        elif self.state == "resting":
+            self.energy = min(self.max_energy, self.energy + 2)  # Recover energy while resting
