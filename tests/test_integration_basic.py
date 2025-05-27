@@ -49,7 +49,7 @@ def test_combat_sequence(test_game):
 @pytest.mark.integration
 def test_plant_sequence(test_game):
     unit = Unit(1, 1, hp=100, energy=80)
-    plant = Plant(Position(1, 2), base_energy=50)
+    plant = Plant(Position(1, 2), base_energy=50, growth_rate=0.1, regrowth_time=10.0)
     test_game.board.place_object(unit, 1, 1)
     test_game.board.place_object(plant, 1, 2)
     test_game.add_unit(unit)

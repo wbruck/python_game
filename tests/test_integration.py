@@ -150,7 +150,10 @@ def test_multi_unit_interaction(test_game_loop, test_board):
         test_board.place_object(unit, unit.x, unit.y)
         test_game_loop.add_unit(unit)
     
-    plants = [Plant(4, 4), Plant(5, 5)]
+    plants = [
+        Plant(Position(4, 4), base_energy=50, growth_rate=0.1, regrowth_time=5.0),
+        Plant(Position(5, 5), base_energy=50, growth_rate=0.1, regrowth_time=5.0)
+    ]
     for plant in plants:
         test_board.place_object(plant, plant.x, plant.y)
     

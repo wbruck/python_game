@@ -1,7 +1,7 @@
 """Integration tests focusing on configuration-driven behaviors and interactions."""
 
 import pytest
-from game.board import Board, MovementType
+from game.board import Board, MovementType, Position
 from game.units.base_unit import Unit
 from game.game_loop import GameLoop
 from game.config import Config
@@ -101,10 +101,10 @@ def test_movement_type_behavior(configured_game):
 def test_plant_growth_rate(configured_game):
     """Test that plant growth follows configured rates."""
     game_loop, board = configured_game
-    plant = Plant(2, 2)
+    plant = Plant(Position(2, 2), base_energy=50, growth_rate=0.1, regrowth_time=5.0)
     board.place_object(plant, 2, 2)
     
-    initial_energy = plant.energy_value
+    initial_energy = plant.state.energy_content
     growth_rate = game_loop.config.get("environment", "plant_growth_rate")
     
     # Run several turns
@@ -113,7 +113,7 @@ def test_plant_growth_rate(configured_game):
         
     # Verify growth matches configuration
     expected_growth = initial_energy * (1 + growth_rate * 5)
-    assert abs(plant.energy_value - expected_growth) < 0.01, \
+    assert abs(plant.state.energy_content - expected_growth) < 0.01, \
         "Plant growth should follow configured growth rate"
 
 @pytest.mark.integration

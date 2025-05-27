@@ -122,14 +122,26 @@ class GameLoop:
         # 5. Randomize unit order
         random.shuffle(self.units)
         
-        # 6. Process only living units
-        living_units = [unit for unit in self.units if unit.alive]
-        for unit in living_units:
-            unit.update(self.board)
-            # Apply energy costs after update
-            energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
-            if hasattr(unit, 'energy'):
-                unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
+        # 6. Process all units (including dead ones for decay)
+        for unit in self.units:
+            # First handle deaths
+            if not unit.alive and unit.state == "dead":
+                unit.decay_stage += 1
+                unit.state = "decaying"
+                continue
+            
+            # Then handle living units
+            if unit.alive:
+                # Apply energy costs before update
+                if hasattr(unit, 'energy'):
+                    energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
+                    unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
+                
+                unit.update(self.board)
+            # Finally handle decaying units
+            elif unit.state == "decaying":
+                unit.decay_stage += 1
+                unit.decay_energy *= (1 - unit.decay_rate)
         
         # 7. Process plants
         growth_modifiers = {
@@ -194,10 +206,17 @@ class GameLoop:
 
     def _update_unit_vision(self):
         """
-        Update vision for all living units based on time of day.
+        Update vision for all living units based on time of day and config.
         """
+        vision_config = self.config.config["units"]["vision_range"] if self.config else None
         for unit in self.units:
             if unit.alive and hasattr(unit, 'base_vision'):
+                if vision_config and self.time_of_day == TimeOfDay.NIGHT:
+                    unit.vision = vision_config["night"]
+                elif vision_config and self.time_of_day == TimeOfDay.DAY:
+                    unit.vision = vision_config["day"]
+                else:
+                    unit.vision = unit.base_vision
                 unit.vision = unit.base_vision // 2 if self.time_of_day == TimeOfDay.NIGHT else unit.base_vision
 
     def get_stats(self):

@@ -16,7 +16,8 @@ class Config:
         "board": {
             "width": {"type": int, "min": 5, "max": 100},
             "height": {"type": int, "min": 5, "max": 100},
-            "allow_diagonal_movement": {"type": bool}
+            "allow_diagonal_movement": {"type": bool},
+            "movement_type": {"type": str}
         },
         "game": {
             "max_turns": {"type": int, "min": 1, "max": 10000},
@@ -31,7 +32,13 @@ class Config:
             "energy_consumption": {
                 "move": {"type": int, "min": 0, "max": 10},
                 "attack": {"type": int, "min": 0, "max": 10},
-                "look": {"type": int, "min": 0, "max": 10}
+                "look": {"type": int, "min": 0, "max": 10},
+                "idle": {"type": int, "min": 0, "max": 10}
+            },
+            "vision_range": {
+                "base": {"type": int, "min": 1, "max": 20},
+                "day": {"type": int, "min": 1, "max": 20},
+                "night": {"type": int, "min": 1, "max": 10}
             },
             "decay_rate": {"type": float, "min": 0.0, "max": 1.0}
         },
@@ -42,7 +49,8 @@ class Config:
         },
         "environment": {
             "day_night_cycle": {"type": bool},
-            "cycle_length": {"type": int, "min": 1, "max": 100}
+            "cycle_length": {"type": int, "min": 1, "max": 100},
+            "plant_growth_rate": {"type": float, "min": 0.0, "max": 1.0}
         }
     }
     """
@@ -95,9 +103,13 @@ class Config:
             config_path (str): Path to the configuration file.
         """
         self.config_path = config_path
-        self.config = copy.deepcopy(self.DEFAULT_CONFIG)  # Deep copy to ensure no shared references
+        self.config: Dict[str, Any] = copy.deepcopy(self.DEFAULT_CONFIG)  # Deep copy to ensure no shared references
         self.change_listeners: List[Callable[[str, str, Any], None]] = []
         self.load_config()
+
+    def get_config(self) -> Dict[str, Any]:
+        """Get a copy of the current configuration."""
+        return copy.deepcopy(self.config)
         
     def load_config(self) -> None:
         """
@@ -124,7 +136,7 @@ class Config:
         except Exception as e:
             print(f"Error loading config: {e}. Using default values.")
     
-    def _validate_config(self, config: Dict) -> None:
+    def _validate_config(self, config: Dict[str, Any]) -> None:
         """
         Validate an entire configuration dictionary against the schema.
         
@@ -134,18 +146,28 @@ class Config:
         Raises:
             ValueError: If any validation fails.
         """
+        schema_ref: Dict[str, Any] = self.SCHEMA
+        
         for section, values in config.items():
-            if section not in self.SCHEMA:
+            if section not in schema_ref:
                 raise ValueError(f"Unknown section: {section}")
             
-            if isinstance(self.SCHEMA[section], dict):
-                for key, value in values.items():
-                    if isinstance(value, dict) and isinstance(self.SCHEMA[section][key], dict):
-                        # Recursively validate nested dictionaries
-                        for subkey, subvalue in value.items():
-                            self._validate_value(section, f"{key}.{subkey}", subvalue)
-                    else:
-                        self._validate_value(section, key, value)
+            section_schema = schema_ref[section]
+            if not isinstance(section_schema, dict):
+                raise ValueError(f"Invalid schema for section {section}")
+                
+            if not isinstance(values, dict):
+                raise ValueError(f"Expected dictionary for section {section}")
+                
+            for key, value in values.items():
+                if isinstance(value, dict):
+                    if key not in section_schema or not isinstance(section_schema[key], dict):
+                        raise ValueError(f"Invalid nested configuration for {section}.{key}")
+                    # Recursively validate nested dictionaries
+                    for subkey, subvalue in value.items():
+                        self._validate_value(section, f"{key}.{subkey}", subvalue)
+                else:
+                    self._validate_value(section, key, value)
 
     def _validate_value(self, section: str, key: str, value: Any) -> None:
         """
@@ -160,22 +182,58 @@ class Config:
             ValueError: If validation fails.
         """
         # Handle nested keys (e.g., "initial_count.predator")
-        schema_ref = self.SCHEMA
+        schema_ref: Dict[str, Any] = self.SCHEMA
         for part in [section] + key.split('.'):
             if part not in schema_ref:
                 raise ValueError(f"Unknown key: {section}.{key}")
             schema_ref = schema_ref[part]
 
-        if not isinstance(value, schema_ref["type"]):
-            raise ValueError(f"Invalid type for {section}.{key}: expected {schema_ref['type'].__name__}, got {type(value).__name__}")
+        if not isinstance(schema_ref, dict) or "type" not in schema_ref:
+            raise ValueError(f"Invalid schema definition for {section}.{key}")
 
-        if schema_ref["type"] in (int, float):
+        expected_type = schema_ref["type"]
+        if not isinstance(value, expected_type):
+            raise ValueError(f"Invalid type for {section}.{key}: expected {expected_type.__name__}, got {type(value).__name__}")
+
+        if expected_type in (int, float):
             if "min" in schema_ref and value < schema_ref["min"]:
                 raise ValueError(f"Value for {section}.{key} below minimum: {value} < {schema_ref['min']}")
             if "max" in schema_ref and value > schema_ref["max"]:
                 raise ValueError(f"Value for {section}.{key} above maximum: {value} > {schema_ref['max']}")
 
-    def _update_config(self, target: Dict, source: Dict, section: str = None) -> None:
+    def update(self, config: Dict[str, Any]) -> None:
+        """
+        Update configuration with new values.
+        
+        Args:
+            config: Dictionary containing new configuration values organized by sections.
+                   Can contain nested dictionaries matching the config structure.
+            
+        Raises:
+            ValueError: If the new configuration is invalid.
+        """
+        # Convert input to ensure proper typing
+        config_dict: Dict[str, Any] = dict(config)
+        
+        # Validate the new configuration before applying
+        self._validate_config(config_dict)
+        
+        # Update each section separately to maintain proper section tracking
+        for section, values in config_dict.items():
+            if section in self.config:
+                if isinstance(values, dict):
+                    if isinstance(self.config[section], dict):
+                        self._update_config(
+                            self.config[section],
+                            {k: v for k, v in values.items()},  # Convert to Dict[str, Any]
+                            section
+                        )
+                    else:
+                        self.config[section] = {k: v for k, v in values.items()}
+                else:
+                    self.config[section] = values
+
+    def _update_config(self, target: Dict[str, Any], source: Dict[str, Any], section: Optional[str] = None) -> None:
         """
         Recursively update nested dictionaries.
         
@@ -184,18 +242,21 @@ class Config:
             source: The source dictionary with new values.
             section: Current configuration section being updated.
         """
-        for key, value in source.items():
-            if section is None:
-                # Top level - key is the section
-                current_section = key
+        # Convert source to dictionary if needed and copy it
+        source_dict = dict(source)
+        
+        for key, value in source_dict.items():
+            current_section = section if section is not None else key
+            
+            # Handle nested dictionaries
+            if (key in target and 
+                isinstance(target[key], dict) and 
+                isinstance(value, dict)):
+                # Recursively update nested dictionary
+                self._update_config(target[key], dict(value), current_section)
             else:
-                current_section = section
-
-            if key in target and isinstance(target[key], dict) and isinstance(value, dict):
-                self._update_config(target[key], value, current_section)
-            else:
+                # Update value and notify listeners
                 target[key] = value
-                # Notify listeners if this is a leaf value
                 if not isinstance(value, dict):
                     self._notify_change(current_section, key, value)
 

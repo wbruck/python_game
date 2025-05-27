@@ -28,7 +28,7 @@ def fixed_config():
         },
         "game": {
             "max_turns": 20,
-            "turn_delay": 0
+            "turn_delay": 0.0
         },
         "units": {
             "energy_consumption": {
@@ -92,8 +92,8 @@ def test_combat_interaction(test_board):
 @pytest.mark.integration
 def test_unit_plant_interaction(game_loop):
     """Test interaction between grazer and plant."""
-    grazer = Grazer(1, 1, hp=100, energy=80)
-    plant = Plant(Position(1, 2), base_energy=50, growth_rate=0.1)
+    grazer = Grazer(1, 1)  # Uses predefined stats from Grazer class
+    plant = Plant(Position(1, 2), base_energy=50, growth_rate=0.1, regrowth_time=5.0)
     
     game_loop.board.place_object(grazer, 1, 1)
     game_loop.board.place_object(plant, 1, 2)
@@ -112,7 +112,7 @@ def test_game_loop_orchestration(game_loop):
     """Test game loop's ability to manage multiple entities."""
     unit1 = Unit(0, 0, hp=100, energy=100)
     unit2 = Unit(4, 4, hp=100, energy=100)
-    plant = Plant(Position(2, 2), base_energy=50)
+    plant = Plant(Position(2, 2), base_energy=50, growth_rate=0.1, regrowth_time=5.0)
     
     game_loop.board.place_object(unit1, 0, 0)
     game_loop.board.place_object(unit2, 4, 4)

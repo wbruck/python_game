@@ -94,6 +94,7 @@ class Unit:
         self.alive = True
         self.decay_stage = 0  # 0 means not decaying (alive)
         self.decay_energy = energy  # Energy available when consumed as food
+        self.decay_rate = 0.1  # Rate at which decay_energy decreases when decaying
         self.last_state = None  # For tracking state transitions
         self.state_duration = 0  # Turns spent in current state
         
@@ -123,6 +124,9 @@ class Unit:
             energy_gained = target.decay_energy
             target.decay_energy = 0
             return energy_gained
+        elif hasattr(target, 'consume'):  # Plant object
+            amount_needed = self.max_energy - self.energy
+            return target.consume(amount_needed)
         elif hasattr(target, 'energy'):
             energy_gained = target.energy
             target.energy = 0
@@ -366,7 +370,9 @@ class Unit:
             
         self.energy -= energy_cost
         
-        # Apply damage
+        # Enter combat state and apply damage
+        self.state = "combat"
+        target.state = "combat"
         target.hp -= damage
         
         # Check if target died
@@ -376,6 +382,11 @@ class Unit:
             target.state = "dead"
             target.decay_stage = 0
             target.decay_energy = target.energy  # Initialize decay energy
+        else:
+            # Counter-attack if target is still alive
+            if target.energy >= 2:  # Check if target has enough energy to counter
+                target.energy -= 2
+                self.hp -= max(1, target.strength)
             
         return damage
     
@@ -412,72 +423,99 @@ class Unit:
                                     if damage > 0:
                                         print(f"Predator dealt {damage} damage to grazer")
                                         self.state = "combat"  # Ensure combat state is maintained
+                                        self.gain_experience("combat")
                                         if not obj.alive:  # If prey died from attack
                                             self.state = "feeding"
-                                            self.energy += 30  # Gain energy from successful hunt
+                                            self.energy = min(self.max_energy, self.energy + 50)  # More energy from killing prey
+                                            self.gain_experience("hunting", 2.0)
                                             print(f"Predator gained energy from prey")
                                         moved = True
                                         return  # Exit the update to maintain state
                                 else:  # Move toward prey
                                     self.state = "hunting"
-                                    # Allow diagonal movement
-                                    move_x = 1 if dx > 0 else (-1 if dx < 0 else 0)
-                                    move_y = 1 if dy > 0 else (-1 if dy < 0 else 0)
+                                    # Calculate direction to prey
+                                    dx_to_prey = check_x - self.x
+                                    dy_to_prey = check_y - self.y
                                     print(f"Predator at ({self.x},{self.y}) spotted prey at ({check_x},{check_y})")
-                                    if abs(dx) > abs(dy):  # Try moving horizontally first
-                                        if not self.move(move_x, 0, board):
-                                            moved = self.move(0, move_y, board)
+                                    
+                                    # Try moving speed steps at a time
+                                    for step in range(self.speed):
+                                        # Choose largest distance component to close gap faster
+                                        if abs(dx_to_prey) > abs(dy_to_prey):
+                                            move_x = 1 if dx_to_prey > 0 else -1
+                                            if self.move(move_x, 0, board):
+                                                moved = True
+                                                dx_to_prey -= move_x
                                         else:
-                                            moved = True
-                                    else:  # Try moving vertically first
-                                        if not self.move(0, move_y, board):
-                                            moved = self.move(move_x, 0, board)
-                                        else:
-                                            moved = True
-                                    print(f"Predator moving toward prey: ({move_x},{move_y}) - Success: {moved}")
+                                            move_y = 1 if dy_to_prey > 0 else -1
+                                            if self.move(0, move_y, board):
+                                                moved = True
+                                                dy_to_prey -= move_y
+                                        
+                                        if not moved:  # Try other direction if first failed
+                                            move_y = 1 if dy_to_prey > 0 else -1
+                                            move_x = 1 if dx_to_prey > 0 else -1
+                                            if abs(dy_to_prey) > 0 and self.move(0, move_y, board):
+                                                moved = True
+                                            elif abs(dx_to_prey) > 0 and self.move(move_x, 0, board):
+                                                moved = True
+                                    
+                                    if moved:
+                                        print(f"Predator moved toward prey")
+                                        self.state = "hunting"
                                 break
 
             # Then scan for food (plants) if we haven't moved
             if not moved:
                 print(f"Scanning for food...")
+                # First check adjacent squares for food
+                for dx, dy in [(0,1), (1,0), (0,-1), (-1,0)]:
+                    check_x, check_y = self.x + dx, self.y + dy
+                    if board.is_valid_position(check_x, check_y):
+                        obj = board.get_object(check_x, check_y)
+                        if obj and hasattr(obj, 'state') and hasattr(obj.state, 'energy_content'):  # Found plant
+                            print(f"Found plant at ({check_x},{check_y})")
+                            energy_gained = self._consume(obj)
+                            if energy_gained > 0:
+                                # Units gain more energy from plants to encourage plant consumption
+                                if hasattr(self, 'unit_type') and self.unit_type == "grazer":
+                                    energy_gained *= 1.5  # Grazers are more efficient at consuming plants
+                                self.energy = min(self.max_energy, self.energy + energy_gained)
+                                print(f"Consumed {energy_gained} energy from plant")
+                                self.state = "feeding"
+                                self.gain_experience("feeding")
+                                return
+                
+                # If no adjacent food, look further
                 for dx in range(-self.vision, self.vision + 1):
                     for dy in range(-self.vision, self.vision + 1):
+                        if abs(dx) <= 1 and abs(dy) <= 1:  # Skip adjacent squares we already checked
+                            continue
                         check_x, check_y = self.x + dx, self.y + dy
                         if board.is_valid_position(check_x, check_y):
                             obj = board.get_object(check_x, check_y)
-                            if obj:
-                                has_energy = hasattr(obj, 'state') and hasattr(obj.state, 'energy_content')
-                                print(f"Found object at ({check_x},{check_y}) - Has energy: {has_energy}")
                             if obj and hasattr(obj, 'state') and hasattr(obj.state, 'energy_content'):  # Found plant
-                                self.state = "hunting"
-                                # Feed if adjacent
-                                if abs(dx) <= 1 and abs(dy) <= 1:
-                                    self.state = "feeding"
-                                    if hasattr(self, 'unit_type') and self.unit_type == "grazer":
-                                        # Grazer consuming plant
-                                        consumed = obj.consume(20)  # Consume some energy
-                                        if consumed > 0:
-                                            self.energy += consumed
-                                            print(f"Grazer consumed {consumed} energy from plant at ({check_x},{check_y})")
-                                            self.state = "feeding"  # Set feeding state when successful
-                                            return  # Exit update to maintain feeding state
-                                    moved = True
-                                else:  # Move toward food
-                                    # Allow diagonal movement
-                                    move_x = 1 if dx > 0 else (-1 if dx < 0 else 0)
-                                    move_y = 1 if dy > 0 else (-1 if dy < 0 else 0)
-                                    print(f"Unit at ({self.x},{self.y}) spotted food at ({check_x},{check_y})")
-                                    if abs(dx) > abs(dy):  # Try moving horizontally first
-                                        if not self.move(move_x, 0, board):
-                                            moved = self.move(0, move_y, board)
-                                        else:
-                                            moved = True
-                                    else:  # Try moving vertically first
-                                        if not self.move(0, move_y, board):
-                                            moved = self.move(move_x, 0, board)
-                                        else:
-                                            moved = True
-                                    print(f"Moving toward food: ({move_x},{move_y}) - Success: {moved}")
+                                print(f"Spotted food at ({check_x},{check_y})")
+                                # Move toward food
+                                dx_to_food = check_x - self.x
+                                dy_to_food = check_y - self.y
+                                move_x = 1 if dx_to_food > 0 else (-1 if dx_to_food < 0 else 0)
+                                move_y = 1 if dy_to_food > 0 else (-1 if dy_to_food < 0 else 0)
+                                
+                                if abs(dx_to_food) > abs(dy_to_food):
+                                    if self.move(move_x, 0, board):
+                                        moved = True
+                                    elif self.move(0, move_y, board):
+                                        moved = True
+                                else:
+                                    if self.move(0, move_y, board):
+                                        moved = True
+                                    elif self.move(move_x, 0, board):
+                                        moved = True
+                                        
+                                if moved:
+                                    print(f"Moved toward food")
+                                    self.state = "hunting"
                                 break
             
             # If no food found or couldn't move toward it, implement wandering behavior
@@ -488,24 +526,22 @@ class Unit:
                 success = self.move(move_x, move_y, board)
                 print(f"Wandering move attempt: ({move_x},{move_y}) from ({self.x},{self.y}) - Success: {success}")
 
-        # Check for death first
-        if self.hp <= 0 and self.alive:  # Only initialize decay on new death
+        # Handle death and decay first
+        if self.hp <= 0 and self.alive:
+            # Initialize death state
             self.hp = 0
             self.alive = False
             self.state = "dead"
-            self.decay_stage = 0
+            self.decay_stage = 1  # Start at stage 1 immediately
             self.decay_energy = self.energy
             return
             
         if not self.alive:
-            decay_rate = 0.1  # 10% decay per turn
-            # Always increment decay stage for dead units
+            # Progress through decay stages
             self.decay_stage += 1
-            self.decay_energy *= (1 - decay_rate)
-            
-            # After 5 turns of being dead, transition to decaying
-            if self.decay_stage > 5 and self.state == "dead":
+            if self.decay_stage >= 2:  # After stage 1, enter decaying state
                 self.state = "decaying"
+            self.decay_energy *= (1 - self.decay_rate)
             return
             
         # Reset stat modifiers
