@@ -20,20 +20,22 @@ class Plant:
     """Base class for all plant types in the ecosystem."""
     
     def __init__(self, 
-                 position: Position,
-                 base_energy: float,
-                 growth_rate: float,
-                 regrowth_time: float):
+                 x: int,
+                 y: int,
+                 base_energy: float = 50.0,
+                 growth_rate: float = 0.1,
+                 regrowth_time: float = 5.0):
         """
         Initialize a new plant.
         
         Args:
-            position: The plant's position on the board
+            x: The plant's x position on the board
+            y: The plant's y position on the board
             base_energy: Maximum energy content when fully grown
             growth_rate: How quickly the plant grows (0.0 to 1.0)
             regrowth_time: Time required to fully regrow after consumption
         """
-        self.position = position
+        self.position = Position(x, y)
         self.base_energy = base_energy
         self.growth_rate = growth_rate
         self.regrowth_time = regrowth_time

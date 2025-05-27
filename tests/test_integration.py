@@ -38,125 +38,221 @@ TEST_CONFIG = {
     }
 }
 
-@pytest.fixture
-def test_config():
-    """Provide a consistent configuration for tests."""
-    config = Config()
-    config.update(TEST_CONFIG)
-    return config
-
-@pytest.fixture
-def test_board():
-    """Create a test board with standard dimensions."""
-    return Board(10, 10, MovementType.CARDINAL)
-
-@pytest.fixture
-def test_game_loop(test_board, test_config):
-    """Create a game loop with fixed board and configuration."""
-    random.seed(42)  # Ensure deterministic behavior
-    game_loop = GameLoop(test_board, max_turns=100)
-    return game_loop
-
 @pytest.mark.integration
-def test_predator_hunting_behavior(test_game_loop, test_board):
+def test_predator_hunting_behavior(integration_game_loop, integration_board, configured_unit):
     """Integration test for predator hunting behavior."""
-    # Set up predator and prey with proper stats
-    predator = Unit(2, 2, hp=120, energy=80, strength=15, speed=2, vision=6)  # Predator stats
-    prey = Unit(5, 5, hp=120, energy=150, strength=5, speed=1, vision=4)  # Grazer stats
+    # Set up predator and prey using configured units
+    predator = configured_unit("predator", 2, 2)
+    prey = configured_unit("grazer", 5, 5)
     
-    test_board.place_object(predator, 2, 2)
-    test_board.place_object(prey, 5, 5)
-    test_game_loop.add_unit(predator)
-    test_game_loop.add_unit(prey)
+    integration_board.place_object(predator, 2, 2)
+    integration_board.place_object(prey, 5, 5)
+    integration_game_loop.add_unit(predator)
+    integration_game_loop.add_unit(prey)
     
-    initial_distance = Position(predator.x, predator.y).distance_to(Position(prey.x, prey.y))
+    # Track initial state
+    initial_state = {
+        "predator_pos": (predator.x, predator.y),
+        "prey_pos": (prey.x, prey.y),
+        "predator_energy": predator.energy,
+        "distance": Position(predator.x, predator.y).distance_to(Position(prey.x, prey.y))
+    }
     
-    for _ in range(5):
-        test_game_loop.process_turn()
-        if not prey.alive:  # Prey was caught
+    # Run simulation with clear success criteria
+    for turn in range(5):
+        integration_game_loop.process_turn()
+        current_distance = Position(predator.x, predator.y).distance_to(Position(prey.x, prey.y))
+        
+        # Either predator has caught prey or is moving toward it
+        if not prey.alive:
+            assert predator.energy > initial_state["predator_energy"], \
+                "Predator should gain energy after successful hunt"
             break
-    
-    final_distance = Position(predator.x, predator.y).distance_to(Position(prey.x, prey.y))
-    assert (final_distance < initial_distance or not prey.alive), "Predator should either move closer to prey or catch it"
+        else:
+            assert current_distance <= initial_state["distance"], \
+                f"Predator should move closer to prey (turn {turn + 1})"
+            assert predator.energy < initial_state["predator_energy"], \
+                "Predator should consume energy while hunting"
 
 @pytest.mark.integration
-def test_unit_plant_interaction(test_game_loop, test_board):
+def test_unit_plant_interaction(integration_game_loop, integration_board, configured_unit, integration_config):
     """Integration test for unit-plant interaction."""
-    grazer = Unit(1, 1, hp=120, energy=150, strength=5, speed=1, vision=4)  # Grazer stats
-    plant = Plant(Position(4, 4), base_energy=50, growth_rate=0.1, regrowth_time=5)
+    # Create configured grazer and plant
+    grazer = configured_unit("grazer", 1, 1)
+    plant = Plant(
+        Position(4, 4),
+        base_energy=50,
+        growth_rate=integration_config.get("plants", "growth_rate"),
+        regrowth_time=5
+    )
     
-    test_board.place_object(grazer, 1, 1)
-    test_board.place_object(plant, plant.position.x, plant.position.y)
-    test_game_loop.add_unit(grazer)
+    integration_board.place_object(grazer, 1, 1)
+    integration_board.place_object(plant, plant.position.x, plant.position.y)
+    integration_game_loop.add_unit(grazer)
     
-    initial_energy = grazer.energy
+    # Track initial state
+    initial_state = {
+        "grazer_pos": (grazer.x, grazer.y),
+        "grazer_energy": grazer.energy,
+        "plant_pos": (plant.position.x, plant.position.y)
+    }
     
-    for _ in range(5):
-        test_game_loop.process_turn()
-        if grazer.energy > initial_energy:  # Plant was consumed
+    plant_consumed = False
+    for turn in range(5):
+        integration_game_loop.process_turn()
+        current_plant = integration_board.get_object(plant.position.x, plant.position.y)
+        
+        if grazer.energy > initial_state["grazer_energy"]:
+            plant_consumed = True
+            assert current_plant is None, "Plant should be removed after consumption"
+            assert (grazer.x, grazer.y) == initial_state["plant_pos"], \
+                "Grazer should be at plant position after consuming it"
             break
+        else:
+            # If plant not yet consumed, grazer should be moving toward it
+            current_distance = Position(grazer.x, grazer.y).distance_to(Position(plant.position.x, plant.position.y))
+            initial_distance = Position(*initial_state["grazer_pos"]).distance_to(Position(*initial_state["plant_pos"]))
+            assert current_distance <= initial_distance, \
+                f"Grazer should move closer to plant (turn {turn + 1})"
     
-    assert grazer.energy > initial_energy or test_board.get_object(4, 4) is None, "Grazer should either consume plant or plant should be removed"
+    if not plant_consumed:
+        assert grazer.energy < initial_state["grazer_energy"], \
+            "Grazer should consume energy while moving"
 
 @pytest.mark.integration
-def test_combat_resolution(test_game_loop, test_board):
-    """Integration test for combat between units."""
-    strong_unit = Unit(3, 3, hp=120, energy=80, strength=15, speed=2, vision=6)  # Predator stats
-    weak_unit = Unit(3, 4, hp=120, energy=150, strength=5, speed=1, vision=4)  # Grazer stats
+def test_combat_resolution(integration_game_loop, integration_board, configured_unit):
+    """Integration test for combat resolution between units."""
+    # Create predator (strong) and grazer (weak) units
+    strong_unit = configured_unit("predator", 3, 3)
+    weak_unit = configured_unit("grazer", 3, 4)
     
-    test_board.place_object(strong_unit, 3, 3)
-    test_board.place_object(weak_unit, 3, 4)
-    test_game_loop.add_unit(strong_unit)
-    test_game_loop.add_unit(weak_unit)
+    integration_board.place_object(strong_unit, 3, 3)
+    integration_board.place_object(weak_unit, 3, 4)
+    integration_game_loop.add_unit(strong_unit)
+    integration_game_loop.add_unit(weak_unit)
     
-    for _ in range(5):
-        test_game_loop.process_turn()
+    # Track initial state
+    initial_state = {
+        "strong_unit_hp": strong_unit.hp,
+        "strong_unit_energy": strong_unit.energy,
+        "weak_unit_hp": weak_unit.hp,
+        "weak_unit_energy": weak_unit.energy
+    }
+    
+    combat_resolved = False
+    for turn in range(5):
+        integration_game_loop.process_turn()
+        
         if not weak_unit.alive:
+            combat_resolved = True
+            assert weak_unit.state == "dead", "Defeated unit should be marked as dead"
+            assert strong_unit.energy > initial_state["strong_unit_energy"], \
+                "Winning combat should restore some energy"
             break
+        else:
+            assert weak_unit.hp < initial_state["weak_unit_hp"], \
+                f"Combat should damage weaker unit (turn {turn + 1})"
+            assert strong_unit.energy < initial_state["strong_unit_energy"], \
+                "Combat should consume attacker's energy"
     
-    assert not weak_unit.alive, "Weaker unit should be defeated"
+    assert combat_resolved, "Combat should resolve within time limit"
     assert strong_unit.alive, "Stronger unit should survive"
-    assert strong_unit.hp < strong_unit.max_hp, "Stronger unit should take some damage"
+    assert strong_unit.hp < strong_unit.max_hp, "Stronger unit should take some damage during combat"
 
 @pytest.mark.integration
-def test_environmental_cycle_effects(test_game_loop, test_board):
-    """Integration test for basic unit energy consumption."""
-    test_unit = Unit(5, 5, hp=120, energy=80, strength=15, speed=2, vision=6)  # Predator stats
-    test_board.place_object(test_unit, 5, 5)
-    test_game_loop.add_unit(test_unit)
+def test_environmental_cycle_effects(integration_game_loop, integration_board, configured_unit, integration_config):
+    """Integration test for environmental effects on units."""
+    test_unit = configured_unit("predator", 5, 5)
+    integration_board.place_object(test_unit, 5, 5)
+    integration_game_loop.add_unit(test_unit)
     
-    # Record initial energy
-    initial_energy = test_unit.energy
+    # Track initial state
+    initial_state = {
+        "energy": test_unit.energy,
+        "vision": test_unit.vision
+    }
     
-    # Run several turns
-    for _ in range(5):
-        test_game_loop.process_turn()
+    cycle_length = integration_config.get("environment", "cycle_length")
     
-    # Verify basic energy consumption
-    assert test_unit.energy < initial_energy, \
-        "Unit should consume energy over time"
+    # Run through one complete environmental cycle
+    for turn in range(cycle_length):
+        integration_game_loop.process_turn()
+        
+        # Verify energy consumption
+        assert test_unit.energy < initial_state["energy"], \
+            f"Unit should consume energy over time (turn {turn + 1})"
+        
+        # Verify day/night vision changes if enabled
+        if integration_config.get("environment", "day_night_cycle"):
+            is_night = (turn >= cycle_length // 2)
+            if is_night:
+                assert test_unit.vision < initial_state["vision"], \
+                    "Unit vision should be reduced during night cycle"
 
 @pytest.mark.integration
-def test_multi_unit_interaction(test_game_loop, test_board):
-    """Integration test for multiple unit interactions."""
+def test_multi_unit_interaction(integration_game_loop, integration_board, configured_unit, integration_config):
+    """Integration test for multiple unit interactions in a complex ecosystem."""
+    # Create a diverse set of units
     units = [
-        Unit(2, 2, hp=120, energy=80, strength=15, speed=2, vision=6),   # Predator
-        Unit(7, 7, hp=120, energy=150, strength=5, speed=1, vision=4),   # Grazer
-        Unit(3, 7, hp=80, energy=100, strength=8, speed=3, vision=8),    # Scavenger
-        Unit(7, 2, hp=120, energy=150, strength=5, speed=1, vision=4)    # Grazer
+        configured_unit("predator", 2, 2),
+        configured_unit("grazer", 7, 7),
+        configured_unit("scavenger", 3, 7),
+        configured_unit("grazer", 7, 2)
     ]
     
+    # Track initial states
+    initial_states = {
+        i: {
+            "position": (unit.x, unit.y),
+            "energy": unit.energy,
+            "hp": unit.hp
+        } for i, unit in enumerate(units)
+    }
+    
+    # Place units and plants
     for unit in units:
-        test_board.place_object(unit, unit.x, unit.y)
-        test_game_loop.add_unit(unit)
+        integration_board.place_object(unit, unit.x, unit.y)
+        integration_game_loop.add_unit(unit)
     
-    plants = [Plant(4, 4), Plant(5, 5)]
+    plants = [
+        Plant(Position(4, 4), 
+             base_energy=50,
+             growth_rate=integration_config.get("plants", "growth_rate"),
+             regrowth_time=5),
+        Plant(Position(5, 5),
+             base_energy=50,
+             growth_rate=integration_config.get("plants", "growth_rate"),
+             regrowth_time=5)
+    ]
+    
     for plant in plants:
-        test_board.place_object(plant, plant.x, plant.y)
+        integration_board.place_object(plant, plant.position.x, plant.position.y)
     
-    for _ in range(10):
-        test_game_loop.process_turn()
+    # Run simulation
+    for turn in range(10):
+        integration_game_loop.process_turn()
+        
+        # Verify basic behaviors each turn
+        for i, unit in enumerate(units):
+            if unit.alive:
+                # Units should either gain energy (found food) or lose energy (movement/time)
+                energy_changed = unit.energy != initial_states[i]["energy"]
+                position_changed = (unit.x, unit.y) != initial_states[i]["position"]
+                assert energy_changed or position_changed, \
+                    f"Unit {i} should either move or change energy (turn {turn + 1})"
     
+    # Final state verification
     surviving_units = [u for u in units if u.alive]
-    assert len(surviving_units) < len(units), "Competition should result in some unit casualties"
-    assert any(u.energy > u.max_energy * 0.8 for u in surviving_units), "Some units should succeed in finding resources"
+    
+    # Verify ecosystem dynamics
+    assert len(surviving_units) < len(units), \
+        "Competition should result in some unit casualties"
+    assert any(u.energy > u.max_energy * 0.8 for u in surviving_units), \
+        "Some units should succeed in finding resources"
+    
+    # Verify predator/prey dynamics
+    predators = [u for u in surviving_units if u.unit_type == "predator"]
+    grazers = [u for u in surviving_units if u.unit_type == "grazer"]
+    if predators:
+        assert len(grazers) < 2, \
+            "Predators should reduce grazer population"

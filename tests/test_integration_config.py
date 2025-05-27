@@ -37,7 +37,10 @@ def base_config():
 def configured_game(base_config):
     """Create a game instance with specific configuration."""
     config = Config()
-    config.update(base_config)
+    config.config = {
+        **config.DEFAULT_CONFIG,  # Start with defaults
+        **base_config  # Override with test-specific values
+    }
     board = Board(
         base_config["board"]["width"],
         base_config["board"]["height"],

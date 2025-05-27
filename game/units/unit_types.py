@@ -24,7 +24,7 @@ class Predator(Unit):
             y (int): Initial y-coordinate on the board.
         """
         # Predators have higher strength and speed but lower max energy
-        super().__init__(x, y, hp=120, energy=80, strength=15, speed=2, vision=6)
+        super().__init__(x, y, unit_type="predator", hp=120, energy=80, strength=15, speed=2, vision=6)
         self.target = None
     
     def update(self, board):

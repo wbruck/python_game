@@ -56,12 +56,15 @@ class Unit:
         Args:
             x (int): Initial x-coordinate on the board.
             y (int): Initial y-coordinate on the board.
+            unit_type (str): Type of unit ('predator', 'grazer', etc.)
             hp (int): Health points. Unit dies when this reaches 0.
             energy (int): Energy for movement and actions. Replenished by eating.
             strength (int): Determines damage in combat.
             speed (int): Affects movement range per turn.
             vision (int): How far the unit can see.
         """
+        self.unit_type = unit_type  # Set unit_type first
+        
         # Use template if unit_type is provided
         if unit_type and unit_type in UNIT_TEMPLATES:
             template = UNIT_TEMPLATES[unit_type]
@@ -370,11 +373,38 @@ class Unit:
         """
         Update the unit's state based on its surroundings and internal state.
         Implements a sophisticated state machine for decision making.
-        
-        Args:
-            board (Board): The game board.
         """
-        # Check for death first
+        # First check for prey if we're a predator type
+        if (hasattr(self, 'unit_type') and 
+            self.unit_type == "predator" and 
+            self.state not in ["dead", "decaying", "feeding", "resting"] and
+            self.energy > self.max_energy * 0.4):  # Only hunt when enough energy
+            
+            # Look for prey in vision range
+            vision_range = int(self.vision * (1.5 if self.state == "hunting" else 1.0))
+            for dx in range(-vision_range, vision_range + 1):
+                for dy in range(-vision_range, vision_range + 1):
+                    check_x, check_y = self.x + dx, self.y + dy
+                    if board.is_valid_position(check_x, check_y):
+                        target = board.get_object(check_x, check_y)
+                        if (target and hasattr(target, 'unit_type') and 
+                            target.unit_type == "grazer" and target.alive):
+                            # If adjacent to prey, attack
+                            if abs(target.x - self.x) <= 1 and abs(target.y - self.y) <= 1:
+                                self.state = "combat"
+                                damage = self.attack(target)
+                                if damage > 0 and not target.alive:
+                                    self.state = "feeding"
+                                    self.energy += target.decay_energy
+                            else:
+                                self.state = "hunting"
+                                # Move toward prey
+                                dx = 0 if target.x == self.x else (1 if target.x > self.x else -1)
+                                dy = 0 if target.y == self.y else (1 if target.y > self.y else -1)
+                                board.move_unit(self, dx, dy)
+                            break
+
+                    # Check for death condition
         if self.hp <= 0 and self.alive:  # Only initialize decay on new death
             self.hp = 0
             self.alive = False
