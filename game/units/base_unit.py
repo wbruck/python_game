@@ -5,6 +5,7 @@ This module implements the base Unit class with fundamental RPG-style stats and 
 All other unit types will inherit from this base class.
 """
 
+import random
 # Predefined unit templates for different roles
 UNIT_TEMPLATES = {
     "predator": {
@@ -12,7 +13,8 @@ UNIT_TEMPLATES = {
         "energy": 120,
         "strength": 15,
         "speed": 2,
-        "vision": 6
+        "vision": 8,  # Increased vision range for better hunting
+        "unit_type": "predator"  # Ensure unit_type is set
     },
     "scavenger": {
         "hp": 80,
@@ -62,6 +64,8 @@ class Unit:
             speed (int): Affects movement range per turn.
             vision (int): How far the unit can see.
         """
+        self.unit_type = unit_type  # Set unit_type first
+        
         # Use template if unit_type is provided
         if unit_type and unit_type in UNIT_TEMPLATES:
             template = UNIT_TEMPLATES[unit_type]
@@ -70,6 +74,7 @@ class Unit:
             strength = template["strength"]
             speed = template["speed"]
             vision = template["vision"]
+            self.unit_type = template.get("unit_type", unit_type)  # Use template unit_type if provided
 
         self.x = x
         self.y = y
@@ -190,20 +195,28 @@ class Unit:
             return False
         
         # Check if movement is possible
-        if not board.is_valid_position(new_x, new_y) or board.get_object(new_x, new_y) is not None:
+        if not board.is_valid_position(new_x, new_y):
+            print(f"Invalid position: ({new_x},{new_y})")
+            return False
+            
+        if board.get_object(new_x, new_y) is not None:
+            print(f"Position occupied: ({new_x},{new_y})")
             return False
         
-        # Calculate energy cost based on state and movement (fixed cost of 1 per space)
+        # Calculate energy cost based on state and movement
         energy_cost = 1  # Base cost of 1 per move regardless of distance
         if self.state == "fleeing":
             energy_cost = 2  # Double cost when fleeing
-        
-        # Check for sufficient energy - need at least 2 energy to move
-        if self.energy < 2:  # Minimum energy requirement
+            
+        # Minimum energy requirement to move at all
+        min_energy = 2
+        if self.energy < min_energy:
+            print(f"Insufficient minimum energy: {self.energy} < {min_energy}")
             return False
-        
-        # Check if we can afford the movement cost
+            
+        # Check for sufficient energy for movement cost
         if self.energy < energy_cost:
+            print(f"Insufficient energy for movement: {self.energy} < {energy_cost}")
             return False
             
         # Check if movement is possible
@@ -374,6 +387,107 @@ class Unit:
         Args:
             board (Board): The game board.
         """
+        # Process movement and actions first if alive
+        if self.alive and self.state not in ["dead", "decaying", "resting", "feeding"]:
+            moved = False
+            # First scan for prey if we're a predator
+            print(f"\nUnit at ({self.x},{self.y}) - Type: {self.unit_type}, Vision: {self.vision}, State: {self.state}")
+            if self.unit_type == "predator":
+                print(f"Predator scanning for prey...")
+                for dx in range(-self.vision, self.vision + 1):
+                    for dy in range(-self.vision, self.vision + 1):
+                        check_x, check_y = self.x + dx, self.y + dy
+                        if board.is_valid_position(check_x, check_y):
+                            obj = board.get_object(check_x, check_y)
+                            if obj and hasattr(obj, 'unit_type'):
+                                print(f"Found object at ({check_x},{check_y}) - Type: {obj.unit_type}")
+                                if obj.unit_type == "grazer" and obj.alive:
+                                    print(f"Found live prey at ({check_x},{check_y})")
+                            if obj and hasattr(obj, 'unit_type') and obj.unit_type == "grazer":
+                                # Attack if adjacent
+                                if abs(dx) <= 1 and abs(dy) <= 1:
+                                    print(f"Predator attacking grazer at ({check_x},{check_y})")
+                                    self.state = "combat"  # Set combat state before attack
+                                    damage = self.attack(obj)
+                                    if damage > 0:
+                                        print(f"Predator dealt {damage} damage to grazer")
+                                        self.state = "combat"  # Ensure combat state is maintained
+                                        if not obj.alive:  # If prey died from attack
+                                            self.state = "feeding"
+                                            self.energy += 30  # Gain energy from successful hunt
+                                            print(f"Predator gained energy from prey")
+                                        moved = True
+                                        return  # Exit the update to maintain state
+                                else:  # Move toward prey
+                                    self.state = "hunting"
+                                    # Allow diagonal movement
+                                    move_x = 1 if dx > 0 else (-1 if dx < 0 else 0)
+                                    move_y = 1 if dy > 0 else (-1 if dy < 0 else 0)
+                                    print(f"Predator at ({self.x},{self.y}) spotted prey at ({check_x},{check_y})")
+                                    if abs(dx) > abs(dy):  # Try moving horizontally first
+                                        if not self.move(move_x, 0, board):
+                                            moved = self.move(0, move_y, board)
+                                        else:
+                                            moved = True
+                                    else:  # Try moving vertically first
+                                        if not self.move(0, move_y, board):
+                                            moved = self.move(move_x, 0, board)
+                                        else:
+                                            moved = True
+                                    print(f"Predator moving toward prey: ({move_x},{move_y}) - Success: {moved}")
+                                break
+
+            # Then scan for food (plants) if we haven't moved
+            if not moved:
+                print(f"Scanning for food...")
+                for dx in range(-self.vision, self.vision + 1):
+                    for dy in range(-self.vision, self.vision + 1):
+                        check_x, check_y = self.x + dx, self.y + dy
+                        if board.is_valid_position(check_x, check_y):
+                            obj = board.get_object(check_x, check_y)
+                            if obj:
+                                has_energy = hasattr(obj, 'state') and hasattr(obj.state, 'energy_content')
+                                print(f"Found object at ({check_x},{check_y}) - Has energy: {has_energy}")
+                            if obj and hasattr(obj, 'state') and hasattr(obj.state, 'energy_content'):  # Found plant
+                                self.state = "hunting"
+                                # Feed if adjacent
+                                if abs(dx) <= 1 and abs(dy) <= 1:
+                                    self.state = "feeding"
+                                    if hasattr(self, 'unit_type') and self.unit_type == "grazer":
+                                        # Grazer consuming plant
+                                        consumed = obj.consume(20)  # Consume some energy
+                                        if consumed > 0:
+                                            self.energy += consumed
+                                            print(f"Grazer consumed {consumed} energy from plant at ({check_x},{check_y})")
+                                            self.state = "feeding"  # Set feeding state when successful
+                                            return  # Exit update to maintain feeding state
+                                    moved = True
+                                else:  # Move toward food
+                                    # Allow diagonal movement
+                                    move_x = 1 if dx > 0 else (-1 if dx < 0 else 0)
+                                    move_y = 1 if dy > 0 else (-1 if dy < 0 else 0)
+                                    print(f"Unit at ({self.x},{self.y}) spotted food at ({check_x},{check_y})")
+                                    if abs(dx) > abs(dy):  # Try moving horizontally first
+                                        if not self.move(move_x, 0, board):
+                                            moved = self.move(0, move_y, board)
+                                        else:
+                                            moved = True
+                                    else:  # Try moving vertically first
+                                        if not self.move(0, move_y, board):
+                                            moved = self.move(move_x, 0, board)
+                                        else:
+                                            moved = True
+                                    print(f"Moving toward food: ({move_x},{move_y}) - Success: {moved}")
+                                break
+            
+            # If no food found or couldn't move toward it, implement wandering behavior
+            if not moved and self.state == "wandering":
+                # Choose a random direction to move
+                directions = [(1,0), (-1,0), (0,1), (0,-1)]
+                move_x, move_y = random.choice(directions)
+                success = self.move(move_x, move_y, board)
+                print(f"Wandering move attempt: ({move_x},{move_y}) from ({self.x},{self.y}) - Success: {success}")
+
         # Check for death first
         if self.hp <= 0 and self.alive:  # Only initialize decay on new death
             self.hp = 0
@@ -415,18 +529,30 @@ class Unit:
             self.state_duration = 0
             self.last_state = self.state
 
-        # State transitions based on conditions
-        if self.energy < self.max_energy * 0.2:
+        # State transitions based on conditions and current state
+        if self.hp <= 0:
+            self.state = "dead"
+        elif self.energy < self.max_energy * 0.2:
             self.state = "resting"
         elif self.hp < self.max_hp * 0.3:
             self.state = "fleeing"
-            self.speed = int(self.base_speed * 1.5) + 1  # Speed boost when fleeing, ensure at least +1
-        elif self.energy < self.max_energy * 0.4:
-            self.state = "feeding"
+            self.speed = int(self.base_speed * 1.5) + 1  # Speed boost when fleeing
         elif self.state == "resting" and self.energy > self.max_energy * 0.8:
             self.state = "wandering"
         elif self.state == "feeding" and self.energy > self.max_energy * 0.9:
             self.state = "wandering"
+        elif self.state == "combat":
+            if self.energy > self.max_energy * 0.6:
+                self.state = "hunting"  # Return to hunting after combat if energy permits
+            else:
+                self.state = "feeding"  # Need to recover energy after combat
+        elif self.state == "hunting" and self.energy < self.max_energy * 0.4:
+            self.state = "feeding"  # Need to recover energy from hunting
+        elif self.state in ["idle", "wandering"]:
+            if random.random() < 0.3:  # 30% chance to start hunting
+                self.state = "hunting"
+            else:
+                self.state = "wandering"
             
         # Apply state-specific effects
         if self.state == "hunting":

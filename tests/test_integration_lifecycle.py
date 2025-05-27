@@ -69,14 +69,14 @@ def test_predator_lifecycle(lifecycle_board):
 def test_energy_cycle(lifecycle_board):
     """Test energy transfer through the ecosystem (plant -> grazer -> predator)."""
     # Setup ecosystem participants
-    plant = Plant(2, 2)
-    grazer = Unit(1, 1, unit_type="grazer")
-    predator = Unit(3, 3, unit_type="predator")
+    plant = Plant(Position(1, 1), base_energy=30, growth_rate=0.1, regrowth_time=5)
+    grazer = Unit(1, 2, unit_type="grazer", energy=80)  # Start adjacent to plant
+    predator = Unit(4, 4, unit_type="predator", vision=8)  # Start farther away
     
     # Place all entities
-    lifecycle_board.place_object(plant, 2, 2)
-    lifecycle_board.place_object(grazer, 1, 1)
-    lifecycle_board.place_object(predator, 3, 3)
+    lifecycle_board.place_object(plant, 1, 1)
+    lifecycle_board.place_object(grazer, 1, 2)
+    lifecycle_board.place_object(predator, 4, 4)
     
     game_loop = GameLoop(lifecycle_board)
     game_loop.add_unit(grazer)
@@ -101,7 +101,7 @@ def test_energy_cycle(lifecycle_board):
             grazer_consumed = True
     
     # Verify energy transfer
-    assert plant_consumed or not plant.alive, "Plant should be consumed by grazer"
+    assert plant_consumed or not plant.state.is_alive, "Plant should be consumed by grazer"
     assert grazer_consumed or not grazer.alive, "Grazer should be consumed by predator"
 
 @pytest.mark.integration
