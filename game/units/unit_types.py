@@ -329,7 +329,14 @@ class Grazer(Unit):
 
     def _graze(self, board):
         """Find and consume plants efficiently."""
+        # Use the Unit's _consume method directly to consume plants
         plants = board.get_plants_in_range(self.x, self.y, self.vision)
+        for plant in plants:
+            if (abs(plant.x - self.x) <= 1 and abs(plant.y - self.y) <= 1):
+                energy_gained = self._consume(plant)
+                if energy_gained > 0:
+                    self.gain_experience("feeding")
+                    break
         
         if plants:
             target = min(plants, key=lambda p: ((p.x - self.x)**2 + (p.y - self.y)**2)**0.5)
@@ -337,10 +344,8 @@ class Grazer(Unit):
             dy = max(min(target.y - self.y, self.speed), -self.speed)
             
             if abs(target.x - self.x) <= 1 and abs(target.y - self.y) <= 1:
-                energy_gained = self._consume(target)
+                energy_gained = self._consume(target)  # _consume already adds energy
                 if energy_gained > 0:
-                    # Grazers get more energy from plants
-                    self.energy += int(energy_gained * 0.3)
                     self.gain_experience("feeding")
             else:
                 if board.move_unit(self, dx, dy):

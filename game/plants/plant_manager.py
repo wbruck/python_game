@@ -27,7 +27,7 @@ class PlantManager:
         self.plants: Dict[Position, Plant] = {}
         
         # Plant type distribution weights
-        self.plant_types: Dict[Type[Plant], float] = {
+        self.plant_types: Dict[Type[BasicPlant | EnergyRichPlant | FastGrowingPlant], float] = {
             BasicPlant: 0.6,        # 60% basic plants
             EnergyRichPlant: 0.15,  # 15% energy-rich plants
             FastGrowingPlant: 0.25  # 25% fast-growing plants
@@ -58,13 +58,13 @@ class PlantManager:
             return False
             
         # Select plant type based on distribution weights
-        plant_type = random.choices(
+        plant_type: Type[BasicPlant | EnergyRichPlant | FastGrowingPlant] = random.choices(
             list(self.plant_types.keys()),
             weights=list(self.plant_types.values())
         )[0]
         
-        # Create and place the plant
-        plant = plant_type(pos)
+        # Create and place the plant with board reference
+        plant = plant_type(pos, board=self.board)
         if self.board.place_object(plant, x, y):
             self.plants[pos] = plant
             return True

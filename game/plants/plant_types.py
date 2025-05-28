@@ -14,12 +14,13 @@ class BasicPlant(Plant):
     Serves as the primary food source in the ecosystem.
     """
     
-    def __init__(self, position: Position):
+    def __init__(self, position: Position, board=None):
         super().__init__(
             position=position,
             base_energy=50.0,      # Standard energy content
             growth_rate=0.08,      # Standard growth rate
-            regrowth_time=12.0     # Standard regrowth time
+            regrowth_time=12.0,    # Standard regrowth time
+            board=board            # Board reference for removal
         )
     
     @property
@@ -32,12 +33,13 @@ class EnergyRichPlant(Plant):
     Creates strategic food source locations in the ecosystem.
     """
     
-    def __init__(self, position: Position):
+    def __init__(self, position: Position, board=None):
         super().__init__(
             position=position,
             base_energy=100.0,     # High energy content
             growth_rate=0.04,      # Slower growth rate
-            regrowth_time=20.0     # Longer regrowth time
+            regrowth_time=20.0,    # Longer regrowth time
+            board=board            # Board reference for removal
         )
     
     @property
@@ -50,12 +52,13 @@ class FastGrowingPlant(Plant):
     Provides reliable but less nutritious food sources.
     """
     
-    def __init__(self, position: Position):
+    def __init__(self, position: Position, board=None):
         super().__init__(
             position=position,
             base_energy=25.0,      # Lower energy content
             growth_rate=0.16,      # Fast growth rate
-            regrowth_time=6.0      # Short regrowth time
+            regrowth_time=6.0,     # Short regrowth time
+            board=board            # Board reference for removal
         )
     
     @property
