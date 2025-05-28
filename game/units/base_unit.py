@@ -85,12 +85,51 @@ class Unit:
         self.base_vision = vision  # Store base value for state modifications
         
         # Core state attributes
-        self.state = "idle"
+        self._state = "idle"  # Use private attribute for state
         self.alive = True
         self.decay_stage = 0  # 0 means not decaying (alive)
         self.decay_energy = energy  # Energy available when consumed as food
         self.last_state = None  # For tracking state transitions
         self.state_duration = 0  # Turns spent in current state
+        
+    @property
+    def state(self):
+        """Get the current state."""
+        return self._state
+        
+    @state.setter
+    def state(self, new_state):
+        """Set state and update stats accordingly."""
+        self.last_state = self._state
+        self._state = new_state
+        self._update_stats_for_state()
+        
+    def _update_stats_for_state(self):
+        """Update unit stats based on current state."""
+        # Reset to base stats first
+        self.speed = self.base_speed
+        self.strength = self.base_strength
+        self.vision = self.base_vision
+        
+        # Apply state-specific modifiers
+        if self._state == "fleeing":
+            self.speed = int(self.base_speed * 1.5) + 1  # Speed boost when fleeing
+            self.strength = int(self.base_strength * 0.5)  # Weaker while fleeing
+        elif self._state == "hunting":
+            self.vision = int(self.base_vision * 1.2) + 1  # Vision boost when hunting
+            self.strength = int(self.base_strength * 1.2)  # Stronger while hunting
+        elif self._state == "resting":
+            self.speed = 0  # Cannot move while resting
+            # Recover energy while resting
+            self.energy = min(self.max_energy, self.energy + 5)
+        elif self._state == "feeding":
+            self.speed = 0  # Cannot move while feeding
+            self.vision = int(self.base_vision * 0.5)  # Limited awareness while feeding
+        elif self._state == "dead":
+            self.alive = False
+            self.speed = 0
+            self.vision = 0
+            self.strength = 0
         
         # Evolution and experience system
         self.experience = 0
@@ -177,13 +216,13 @@ class Unit:
         self.hp = self.max_hp
         self.energy = self.max_energy
 
-    def move(self, dx, dy, board):
+    def move(self, new_x, new_y, board):
         """
-        Move the unit by the given delta if possible.
+        Move the unit to a specific position if possible.
         
         Args:
-            dx (int): The change in x-coordinate.
-            dy (int): The change in y-coordinate.
+            new_x (int): The target x-coordinate.
+            new_y (int): The target y-coordinate.
             board (Board): The game board.
             
         Returns:
@@ -191,40 +230,49 @@ class Unit:
         """
         if not self.alive or self.state in ["dead", "decaying", "resting", "feeding"]:
             return False
+            
+        # Calculate distance to move
+        dx = abs(new_x - self.x)
+        dy = abs(new_y - self.y)
+        
+        # Calculate total distance
+        total_dist = abs(dx) + abs(dy)
+        
+        # Calculate base energy cost (1 per step, minimum 1)
+        base_cost = max(1, total_dist)
+        
+        # Modify cost based on state
+        # Verify we have minimum energy to attempt movement
+        min_energy = 2  # Minimum energy required to attempt any movement
+        if self.energy < min_energy:
+            return False
 
-        new_x = self.x + dx
-        new_y = self.y + dy
+        # Calculate base energy cost
+        energy_cost = base_cost * {
+            "fleeing": 2.0,    # Double cost when fleeing
+            "hunting": 1.5,    # 50% more when hunting
+            "resting": 0.5,    # Half cost when resting
+            "feeding": 2.0,    # Double cost when feeding
+        }.get(self.state, 1.0)
+
+        # Additional cost for diagonal movement
+        if dx != 0 and dy != 0:
+            energy_cost *= 1.4  # 40% more for diagonal
+
+        # Ensure minimum cost and convert to integer
+        energy_cost = int(max(min_energy, energy_cost))
         
-        # Validate movement based on speed
-        if abs(dx) + abs(dy) > self.speed:
-            return False
-        
-        # Check if movement is possible
-        if not board.is_valid_position(new_x, new_y) or board.get_object(new_x, new_y) is not None:
-            return False
-        
-        # Calculate energy cost based on state and movement (fixed cost of 1 per space)
-        energy_cost = 1  # Base cost of 1 per move regardless of distance
-        if self.state == "fleeing":
-            energy_cost = 2  # Double cost when fleeing
-        
-        # Check for sufficient energy - need at least 2 energy to move
-        if self.energy < 2:  # Minimum energy requirement
-            return False
-        
-        # Check if we can afford the movement cost
-        if self.energy < energy_cost:
-            return False
-            
-        # Check if movement is possible
-        if not board.move_object(self.x, self.y, new_x, new_y):
-            return False
-            
-        # Apply movement and energy cost
-        self.x = new_x
-        self.y = new_y
-        self.energy -= energy_cost
-        return True
+        # Attempt the move
+        if board.move_object(self.x, self.y, new_x, new_y):
+            # Always consume at least min_energy, but no more than we have
+            actual_cost = min(self.energy, energy_cost)
+            self.energy -= actual_cost
+            return True
+
+        # Failed moves cost half energy (minimum 1)
+        failed_cost = max(1, energy_cost // 2)
+        self.energy = max(0, self.energy - failed_cost)
+        return False
     
     def look(self, board):
         """
@@ -240,27 +288,26 @@ class Unit:
         if not self.alive:
             return []
 
-        # Adjust vision range based on state
+        # Get base vision range and adjust for state
         vision_range = self.vision
         if self.state == "hunting":
             vision_range = int(self.vision * 1.5)
         elif self.state == "fleeing":
             vision_range = int(self.vision * 1.2)
+        elif self.state == "feeding":
+            vision_range = int(self.vision * 0.5)  # Limited awareness while feeding
+            
+        # Use board's line of sight calculations for better accuracy
+        visible_units = board.get_units_in_range(self.x, self.y, vision_range)
         
-        visible_objects = []
-        for y in range(self.y - vision_range, self.y + vision_range + 1):
-            for x in range(self.x - vision_range, self.x + vision_range + 1):
-                if board.is_valid_position(x, y):
-                    obj = board.get_object(x, y)
-                    if obj is not None and obj is not self:
-                        # Calculate distance for priority assessment
-                        distance = abs(x - self.x) + abs(y - self.y)
-                        if distance <= vision_range:
-                            visible_objects.append((obj, x, y, distance))
-        
-        # Sort by distance for easier priority assessment
-        # Convert to expected format (obj, x, y) without distance
-        return [(obj, x, y) for obj, x, y, _ in sorted(visible_objects, key=lambda x: x[3])]
+        # Convert to list of tuples with positions for compatibility
+        result = []
+        for unit in visible_units:
+            if unit is not self:  # Exclude self from results
+                result.append((unit, unit.x, unit.y))
+                
+        # Sort by distance for priority assessment
+        return sorted(result, key=lambda x: abs(x[1] - self.x) + abs(x[2] - self.y))
     
     def eat(self, food):
         """
@@ -385,15 +432,17 @@ class Unit:
             board (Board): The game board.
         """
         # Check for death first
-        if self.hp <= 0 and self.alive:  # Only initialize decay on new death
-            self.hp = 0
-            self.alive = False
-            self.state = "dead"
-            self.decay_stage = 0
-            self.decay_energy = self.energy
+        if self.hp <= 0:  # Handle death state
+            if self.alive:  # Only initialize decay on new death
+                self.state = "dead"  # This will trigger _update_stats_for_state
+                self.decay_stage = 0
+                self.decay_energy = max(self.energy, 20)  # Ensure minimum energy content for scavenging
+            elif self.state == "dead" and self.decay_stage < 3:  # Progress through decay stages
+                self.decay_stage += 1
+                self.decay_energy = max(0, self.decay_energy - 10)  # Reduce available energy over time
             return
             
-        if not self.alive:
+        if not self.alive:  # Skip updates if dead
             decay_rate = 0.1  # 10% decay per turn
             # Always increment decay stage for dead units
             self.decay_stage += 1
