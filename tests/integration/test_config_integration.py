@@ -23,7 +23,7 @@ class TestConfigIntegration:
             "board": {
                 "width": 20,
                 "height": 20,
-                "allow_diagonal_movement": False
+                "allow_diagonal": False
             },
             "environment": {
                 "cycle_length": 10,
@@ -59,11 +59,11 @@ class TestConfigIntegration:
         board = Board(
             width=base_config.get("board", "width"),
             height=base_config.get("board", "height"),
-            allow_diagonal=base_config.get("board", "allow_diagonal_movement")
+            allow_diagonal=base_config.get("board", "allow_diagonal")
         )
         
         unit = Predator(x=1, y=1)
-        board.place_unit(unit, 1, 1)
+        board.place_object(unit, 1, 1)
         
         # Attempt diagonal movement (should fail)
         can_move = board.move_unit(unit, 2, 2)
@@ -81,13 +81,13 @@ class TestConfigIntegration:
         grazer = Grazer(x=5, y=5)
         
         # Verify configured attributes
-        assert predator.energy == base_config.get("units", "predator.base_energy")
-        assert predator.vision == base_config.get("units", "predator.vision_range")
-        assert predator.strength == base_config.get("units", "predator.attack_strength")
+        assert predator.energy == base_config.get("units")["predator"]["base_energy"]
+        assert predator.vision == base_config.get("units")["predator"]["vision_range"]
+        assert predator.strength == base_config.get("units")["predator"]["attack_strength"]
         
-        assert grazer.energy == base_config.get("units", "grazer.base_energy")
-        assert grazer.vision == base_config.get("units", "grazer.vision_range")
-        assert grazer.speed == base_config.get("units", "grazer.flee_speed")
+        assert grazer.energy == base_config.get("units")["grazer"]["base_energy"]
+        assert grazer.vision == base_config.get("units")["grazer"]["vision_range"]
+        assert grazer.speed == base_config.get("units")["grazer"]["flee_speed"]
 
     def test_environment_config_effects(self, base_config):
         """Test that environmental configuration affects game mechanics."""
@@ -132,14 +132,14 @@ class TestConfigIntegration:
         predator = Predator(x=1, y=1)
         grazer = Grazer(x=2, y=2)
         
-        board.place_unit(predator, 1, 1)
-        board.place_unit(grazer, 2, 2)
+        board.place_object(predator, 1, 1)
+        board.place_object(grazer, 2, 2)
         
         initial_grazer_hp = grazer.hp
         predator.attack(grazer)
         
         # Verify damage based on configured strength
-        expected_damage = base_config.get("units", "predator.attack_strength")
+        expected_damage = base_config.get("units")["predator"]["attack_strength"]
         actual_damage = initial_grazer_hp - grazer.hp
         assert actual_damage == expected_damage
 

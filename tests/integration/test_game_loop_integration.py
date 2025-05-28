@@ -27,8 +27,8 @@ class TestGameLoopIntegration:
         grazer = Grazer(x=8, y=8)
         game_loop.add_unit(predator)
         game_loop.add_unit(grazer)
-        board.place_unit(predator, 1, 1)
-        board.place_unit(grazer, 8, 8)
+        board.place_object(predator, 1, 1)
+        board.place_object(grazer, 8, 8)
         
         # Add plants
         grass = BasicPlant(Position(4, 4))

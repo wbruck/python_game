@@ -73,9 +73,9 @@ class TestUnitCombatIntegration:
         predator2 = Predator(x=1, y=2)
         grazer = Grazer(x=2, y=2)
         
-        board.place_unit(predator1, 1, 1)
-        board.place_unit(predator2, 1, 2)
-        board.place_unit(grazer, 2, 2)
+        board.place_object(predator1, 1, 1)
+        board.place_object(predator2, 1, 2)
+        board.place_object(grazer, 2, 2)
         
         # First predator attacks
         initial_grazer_hp = grazer.hp
@@ -98,7 +98,7 @@ class TestUnitCombatIntegration:
         
         board.place_object(predator, 1, 1)
         board.place_object(grazer, 2, 2)
-        board.place_unit(scavenger, 3, 3)
+        board.place_object(scavenger, 3, 3)
         
         # Kill the grazer
         grazer.hp = 0
@@ -125,10 +125,11 @@ class TestUnitCombatIntegration:
         predator.state = "hunting"
         grazer.state = "fleeing"
         
-        # Move units multiple times to simulate chase
-        for _ in range(3):
-            board.move_unit(predator, predator.x + 1, predator.y)
-            board.move_unit(grazer, grazer.x + 2, grazer.y)
+        # Move units within board boundaries to simulate chase
+        moves = [(1,0), (1,1), (1,-1)]  # Different movement patterns
+        for dx, dy in moves:
+            board.move_unit(predator, predator.x + dx, predator.y + dy)
+            board.move_unit(grazer, grazer.x + dx, grazer.y - dy)  # Grazer moves opposite direction
             
         # Verify energy consumption
         assert predator.energy < initial_predator_energy

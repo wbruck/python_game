@@ -35,20 +35,21 @@ class Board:
     and obstacles. It manages movement, collision detection, and visibility.
     """
     
-    def __init__(self, width: int, height: int, movement_type: MovementType = MovementType.CARDINAL):
+    def __init__(self, width: int, height: int, allow_diagonal: bool = False):
         """
         Initialize a new game board with the specified dimensions.
         
         Args:
             width (int): The width of the board.
             height (int): The height of the board.
-            movement_type (MovementType): Type of movement allowed (4 or 8 directions).
+            allow_diagonal (bool): Whether diagonal movement is allowed.
         """
         self.width = width
         self.height = height
         self.grid = [[None for _ in range(width)] for _ in range(height)]
-        self.movement_type = movement_type
+        self.movement_type = MovementType.DIAGONAL if allow_diagonal else MovementType.CARDINAL
         self._object_positions: Dict[object, Position] = {}  # Track object positions
+        self._plants: Set[object] = set()  # Track plants separately
         self.random = random.Random()  # Create a dedicated random number generator
         
         # Define movement vectors based on movement type
@@ -58,7 +59,7 @@ class Board:
             (1, 0),   # East
             (-1, 0),  # West
         ]
-        if movement_type == MovementType.DIAGONAL:
+        if allow_diagonal:
             self.movement_vectors.extend([
                 (1, 1),    # Northeast
                 (-1, 1),   # Northwest
@@ -393,18 +394,40 @@ class Board:
                 
         return placed_positions
     
-    def get_object(self, x: int, y: int) -> Optional[object]:
+    def add_plant(self, plant) -> bool:
         """
-        Get the object at the specified position.
+        Add a plant to the board at its current position.
         
         Args:
-            x (int): The x-coordinate.
-            y (int): The y-coordinate.
+            plant: The plant object to add
             
         Returns:
-            Optional[object]: The object at the specified position, or None if there is no object.
+            bool: True if plant was added successfully, False otherwise
         """
-        if not self.is_valid_position(x, y):
-            return None
+        pos = getattr(plant, 'position', None)
+        if pos is None:
+            return False
         
-        return self.grid[y][x]
+        success = self.place_object(plant, pos.x, pos.y)
+        if success:
+            self._plants = self._plants | {plant}  # Use union to avoid set initialization issue
+        return success
+
+    def remove_plant(self, plant) -> bool:
+        """
+        Remove a plant from the board.
+        
+        Args:
+            plant: The plant object to remove
+            
+        Returns:
+            bool: True if plant was removed successfully, False otherwise
+        """
+        pos = self._object_positions.get(plant)
+        if pos is None or plant not in self._plants:
+            return False
+            
+        self.remove_object(pos.x, pos.y)
+        self._plants.remove(plant)
+        return True
+

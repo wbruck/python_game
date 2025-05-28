@@ -23,8 +23,23 @@ class Predator(Unit):
             x (int): Initial x-coordinate on the board.
             y (int): Initial y-coordinate on the board.
         """
-        # Predators have higher strength and speed but lower max energy
-        super().__init__(x, y, hp=120, energy=80, strength=15, speed=2, vision=6)
+        from game.config import Config
+        config = Config()
+        
+        # Get predator-specific attributes from config
+        base_energy = config.get("units", "predator.base_energy")
+        vision_range = config.get("units", "predator.vision_range")
+        attack_strength = config.get("units", "predator.attack_strength")
+        
+        super().__init__(
+            x=x, 
+            y=y, 
+            hp=120,  # Base HP is standard
+            energy=base_energy,
+            strength=attack_strength,
+            speed=2,  # Base speed is standard
+            vision=vision_range
+        )
         self.target = None
     
     def update(self, board):
@@ -88,8 +103,8 @@ class Predator(Unit):
                 move_success = board.move_unit(self, dx, dy)
                 print(f"Move success: {move_success}")
                 if move_success:
-                    print("Reducing energy by 2")
-                    self.energy -= 2  # Higher energy cost for hunting movement
+                    move_cost = Config().get("units", "energy_consumption.move")
+                    self.energy -= move_cost * (1.5 if self.state == "hunting" else 1.0)  # Higher cost when hunting
                     self.gain_experience("hunting", 0.5)
 
     def _find_closest_food(self, board):
@@ -238,11 +253,13 @@ class Scavenger(Unit):
         if threats:
             threat = min(threats, key=lambda u: ((u.x - self.x)**2 + (u.y - self.y)**2)**0.5)
             # Move in opposite direction of threat
-            dx = max(min(self.x - threat.x, self.speed), -self.speed)
-            dy = max(min(self.y - threat.y, self.speed), -self.speed)
+            # Use increased speed when fleeing
+            dx = max(min(self.x - threat.x, self.flee_speed), -self.flee_speed)
+            dy = max(min(self.y - threat.y, self.flee_speed), -self.flee_speed)
             
             if board.move_unit(self, dx, dy):
-                self.energy -= 2
+                move_cost = Config().get("units", "energy_consumption.move")
+                self.energy -= move_cost * 1.5  # Higher energy cost when fleeing
                 self.gain_experience("fleeing")
 
 
@@ -262,8 +279,24 @@ class Grazer(Unit):
             x (int): Initial x-coordinate on the board.
             y (int): Initial y-coordinate on the board.
         """
-        # Grazers have higher energy capacity but lower strength
-        super().__init__(x, y, hp=90, energy=130, strength=5, speed=1, vision=5)
+        from game.config import Config
+        config = Config()
+        
+        # Get grazer-specific attributes from config
+        base_energy = config.get("units", "grazer.base_energy")
+        vision_range = config.get("units", "grazer.vision_range")
+        flee_speed = config.get("units", "grazer.flee_speed")
+        
+        super().__init__(
+            x=x,
+            y=y,
+            hp=90,  # Base HP is standard
+            energy=base_energy,
+            strength=5,  # Base strength is standard
+            speed=1,  # Base speed, increases when fleeing
+            vision=vision_range
+        )
+        self.flee_speed = flee_speed  # Store flee speed for state changes
     
     def update(self, board):
         """
@@ -311,7 +344,8 @@ class Grazer(Unit):
                     self.gain_experience("feeding")
             else:
                 if board.move_unit(self, dx, dy):
-                    self.energy -= 1
+                    move_cost = Config().get("units", "energy_consumption.move")
+                    self.energy -= move_cost
                     self.gain_experience("feeding", 0.2)  # Small exp gain for finding food
         else:
             # If no plants visible, explore randomly
