@@ -35,19 +35,19 @@ class Board:
     and obstacles. It manages movement, collision detection, and visibility.
     """
     
-    def __init__(self, width: int, height: int, allow_diagonal: bool = False):
+    def __init__(self, width: int, height: int, movement_type: MovementType = MovementType.CARDINAL):
         """
         Initialize a new game board with the specified dimensions.
         
         Args:
             width (int): The width of the board.
             height (int): The height of the board.
-            allow_diagonal (bool): Whether diagonal movement is allowed.
+            movement_type (MovementType): Type of movement allowed on the board.
         """
         self.width = width
         self.height = height
         self.grid = [[None for _ in range(width)] for _ in range(height)]
-        self.movement_type = MovementType.DIAGONAL if allow_diagonal else MovementType.CARDINAL
+        self.movement_type = movement_type
         self._object_positions: Dict[object, Position] = {}  # Track object positions
         self._plants: Set[object] = set()  # Track plants separately
         self.random = random.Random()  # Create a dedicated random number generator
@@ -59,7 +59,7 @@ class Board:
             (1, 0),   # East
             (-1, 0),  # West
         ]
-        if allow_diagonal:
+        if movement_type == MovementType.DIAGONAL:
             self.movement_vectors.extend([
                 (1, 1),    # Northeast
                 (-1, 1),   # Northwest
@@ -233,33 +233,25 @@ class Board:
             return set()
 
         visible = set()
-        center = Position(x, y)
-        visible.add(center)  # Always include center position
-        
-        # Cast rays in all directions
-        for angle in range(0, 360, 15):  # Cast a ray every 15 degrees
-            rad = angle * 3.14159 / 180.0
-            dx = int(vision_range * 0.71 * (-1 if angle > 180 else 1))  # Scale for better coverage
-            dy = int(vision_range * 0.71 * (-1 if 90 < angle < 270 else 1))
-            
-            curr_x, curr_y = x, y
-            for step in range(vision_range):
-                curr_x += dx // vision_range
-                curr_y += dy // vision_range
+        # Check each position within a square of size vision_range
+        for dx in range(-vision_range, vision_range + 1):
+            for dy in range(-vision_range, vision_range + 1):
+                # Calculate target position
+                target_x, target_y = x + dx, y + dy
                 
-                if not self.is_valid_position(curr_x, curr_y):
-                    break
-                    
-                pos = Position(curr_x, curr_y)
-                if center.distance_to(pos) > vision_range:
-                    break
-                    
-                visible.add(pos)
+                # Skip if out of bounds
+                if not self.is_valid_position(target_x, target_y):
+                    continue
                 
-                # Stop at vision-blocking objects
-                obj = self.get_object(curr_x, curr_y)
-                if obj is not None and hasattr(obj, 'blocks_vision') and obj.blocks_vision:
-                    break
+                # Skip if beyond vision range (use Manhattan distance for simplicity)
+                if abs(dx) + abs(dy) > vision_range:
+                    continue
+                
+                # Add position if we have line of sight
+                start_pos = Position(x, y)
+                target_pos = Position(target_x, target_y)
+                if self._has_line_of_sight(start_pos, target_pos):
+                    visible.add(target_pos)
         
         return visible
 
@@ -346,9 +338,20 @@ class Board:
                 print(f"Movement distance {manhattan_dist} exceeds speed limit {max_speed}")
                 return False
                 
-            # For diagonal movement
-            if dx > 0 and dy > 0 and self.movement_type != MovementType.DIAGONAL:
+            # Check diagonal movement
+            is_diagonal = dx > 0 and dy > 0
+            if is_diagonal and self.movement_type != MovementType.DIAGONAL:
                 print("Diagonal movement not allowed")
+                return False
+                
+            # Check speed limit
+            if manhattan_dist > max_speed:
+                print(f"Movement distance {manhattan_dist} exceeds speed limit {max_speed}")
+                return False
+                
+            # Check for occupied space
+            if self.grid[to_y][to_x] is not None:
+                print(f"Destination position ({to_x}, {to_y}) is occupied")
                 return False
             
         # Move object
