@@ -156,8 +156,16 @@ class Scavenger(Unit):
             x (int): Initial x-coordinate on the board.
             y (int): Initial y-coordinate on the board.
         """
-        # Scavengers have better vision but average stats otherwise
-        super().__init__(x, y, hp=100, energy=110, strength=8, speed=1, vision=8)
+        # Scavengers have better vision and moderate stats
+        super().__init__(
+            x=x, 
+            y=y, 
+            hp=90,           # Lower HP than others
+            energy=80,       # Start with less energy to encourage feeding
+            strength=8, 
+            speed=2,         # Good speed for finding food
+            vision=8         # Enhanced vision for finding corpses
+        )
     
     def update(self, board):
         """
@@ -184,28 +192,72 @@ class Scavenger(Unit):
             self.state = "scavenging"
             self._search_for_corpses(board)
 
+    def feed(self, target):
+        """
+        Feed on a dead unit, gaining energy based on its decay state.
+        
+        Args:
+            target: The dead unit to feed on
+            
+        Returns:
+            int: Amount of energy gained
+        """
+        if target.alive or not hasattr(target, 'decay_energy'):
+            return 0
+            
+        # Ensure target has valid decay properties
+        if not hasattr(target, 'decay_stage'):
+            target.decay_stage = 0
+        if not hasattr(target, 'decay_energy'):
+            target.decay_energy = target.energy
+            
+        # Ensure target has proper decay properties
+        if not hasattr(target, 'decay_stage'):
+            target.decay_stage = 0
+        if not hasattr(target, 'decay_energy'):
+            target.decay_energy = target.max_energy
+            
+        # Calculate base energy available (more from fresher corpses)
+        base_energy = target.decay_energy * (1.0 - (target.decay_stage * 0.2))
+        
+        # Scavengers are extremely efficient at extracting energy
+        efficiency = 3.0 if self.state == "hungry" else 2.0
+        potential_gain = int(base_energy * efficiency)
+        
+        # Ensure significant energy gain
+        minimum_gain = 35
+        energy_gain = max(minimum_gain, min(potential_gain, self.max_energy - self.energy))
+        
+        # Apply the energy gain
+        self.energy = min(self.max_energy, self.energy + energy_gain)
+        
+        # Reduce corpse's energy and advance decay
+        target.decay_energy = max(0, target.decay_energy - (energy_gain / efficiency))
+        target.decay_stage += 1
+        
+        # Update decay state if fully consumed
+        if target.decay_energy <= 0:
+            target.decay_stage = 4  # Fully consumed
+            target.decay_energy = 0
+            target.state = "decaying"
+            
+        return energy_gain
+        
     def _search_for_corpses(self, board):
         """Search for dead units to consume."""
         # Scavengers have enhanced detection of dead units
         visible_units = board.get_units_in_range(self.x, self.y, self.vision + 2)
-        print(f"Scavenger at ({self.x}, {self.y}) found {len(visible_units)} visible units:")
-        for unit in visible_units:
-            print(f"- Found unit at ({unit.x}, {unit.y}): {type(unit).__name__}, alive={unit.alive}")
-        
         corpses = [u for u in visible_units if not u.alive and u.decay_stage < 4]  # Can eat more decayed corpses
-        print(f"Found {len(corpses)} corpses to scavenge")
         
         if corpses:
             target = min(corpses, key=lambda u: ((u.x - self.x)**2 + (u.y - self.y)**2)**0.5)
-            print(f"Scavenger at ({self.x}, {self.y}) found corpse at ({target.x}, {target.y})")
             
             # Calculate direction to move toward corpse
             dx = -1 if self.x > target.x else (1 if self.x < target.x else 0)
             dy = -1 if self.y > target.y else (1 if self.y < target.y else 0)
-            print(f"Moving toward corpse with dx={dx}, dy={dy}")
             
             if abs(target.x - self.x) <= 1 and abs(target.y - self.y) <= 1:
-                energy_gained = self._consume(target)
+                energy_gained = self.feed(target)
                 if energy_gained > 0:
                     # Scavengers get more energy from corpses
                     self.energy += int(energy_gained * 0.5)
