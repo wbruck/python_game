@@ -27,18 +27,16 @@ class Predator(Unit):
         config = Config()
         
         # Get predator-specific attributes from config
-        base_energy = config.get("units", "predator.base_energy")
-        vision_range = config.get("units", "predator.vision_range")
         attack_strength = config.get("units", "predator.attack_strength")
         
         super().__init__(
             x=x, 
             y=y, 
             hp=120,  # Base HP is standard
-            energy=base_energy,
+            energy=80,  # Fixed energy value
             strength=attack_strength,
             speed=2,  # Base speed is standard
-            vision=vision_range
+            vision=6   # Fixed vision value
         )
         self.target = None
     
@@ -83,24 +81,16 @@ class Predator(Unit):
             dx = 0 if target.x == self.x else (1 if target.x > self.x else -1)
             dy = 0 if target.y == self.y else (1 if target.y > self.y else -1)
             
-            # Limit by speed
-            if abs(dx) + abs(dy) > self.speed:
-                if abs(target.x - self.x) > abs(target.y - self.y):
-                    dy = 0
-                else:
-                    dx = 0
-            
-            # If adjacent to prey, attack
-            if abs(target.x - self.x) <= 1 and abs(target.y - self.y) <= 1:
-                damage = self._attack(target)
-                if damage > 0:
-                    self.gain_experience("combat")
-                    if not target.alive:
-                        self.gain_experience("hunting")
-            else:
-                # Move toward prey
-                print(f"Attempting to move: dx={dx}, dy={dy}")
-                move_success = board.move_unit(self, dx, dy)
+            # Try to move toward target
+            print(f"Attempting to move: dx={dx}, dy={dy}")
+            if self.move(dx, dy, board):
+                # After movement, check if we can attack
+                if abs(target.x - self.x) <= 1 and abs(target.y - self.y) <= 1:
+                    damage = self._attack(target)
+                    if damage > 0:
+                        self.gain_experience("combat")
+                        if not target.alive:
+                            self.gain_experience("hunting")
                 print(f"Move success: {move_success}")
                 if move_success:
                     move_cost = Config().get("units", "energy_consumption.move")
@@ -160,10 +150,10 @@ class Scavenger(Unit):
         super().__init__(
             x=x, 
             y=y, 
-            hp=90,           # Lower HP than others
-            energy=80,       # Start with less energy to encourage feeding
+            hp=100,          # Fixed HP value
+            energy=110,      # Fixed energy value
             strength=8, 
-            speed=2,         # Good speed for finding food
+            speed=1,         # Standard speed for balance
             vision=8         # Enhanced vision for finding corpses
         )
     
@@ -335,18 +325,16 @@ class Grazer(Unit):
         config = Config()
         
         # Get grazer-specific attributes from config
-        base_energy = config.get("units", "grazer.base_energy")
-        vision_range = config.get("units", "grazer.vision_range")
         flee_speed = config.get("units", "grazer.flee_speed")
         
         super().__init__(
             x=x,
             y=y,
             hp=90,  # Base HP is standard
-            energy=base_energy,
+            energy=130,  # Fixed energy value
             strength=5,  # Base strength is standard
             speed=1,  # Base speed, increases when fleeing
-            vision=vision_range
+            vision=5  # Fixed vision value
         )
         self.flee_speed = flee_speed  # Store flee speed for state changes
     

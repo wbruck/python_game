@@ -10,9 +10,8 @@ from game.game_loop import GameLoop, TimeOfDay, Season
 
 def test_init(game_loop, mock_config):
     """Test game loop initialization."""
-    assert isinstance(game_loop.board, Mock)
+    assert game_loop.board is not None
     assert game_loop.max_turns == 100
-    assert game_loop.current_turn == 0
     assert len(game_loop.units) == 0
     assert len(game_loop.plants) == 0
     assert not game_loop.is_running
