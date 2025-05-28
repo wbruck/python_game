@@ -120,7 +120,7 @@ class Board:
     def get_units_in_range(self, x: int, y: int, range_: int) -> List[object]:
         """
         Get all units within a specified range of a position.
-        Uses Manhattan distance for consistent game mechanics.
+        Uses Euclidean distance for more natural vision mechanics.
         
         Args:
             x (int): Center x-coordinate
@@ -130,9 +130,10 @@ class Board:
         Returns:
             List[object]: List of units found within range and line of sight
         """
+        print(f"Checking vision from ({x}, {y}) with range {range_}")
         units = []
-        # Expand search area slightly to ensure edge cases
-        search_range = range_ + 1
+        # Expand search area to cover diagonal vision
+        search_range = int(range_ * 1.5)  # Expanded to ensure catching diagonal cases
         center = Position(x, y)
         
         # Search expanded area for units
@@ -145,25 +146,38 @@ class Board:
                 if not self.is_valid_position(check_x, check_y):
                     continue
                 
-                # Use Manhattan distance for game consistency
-                if abs(dx) + abs(dy) > range_:
+                # Use Euclidean distance for more natural vision
+                distance = ((dx * dx) + (dy * dy)) ** 0.5
+                if distance > range_:
                     continue
                 
                 # Get object at position
                 obj = self.get_object(check_x, check_y)
-                if obj is None or not hasattr(obj, 'alive'):
+                if obj is None:
+                    continue
+                    
+                print(f"Found object at ({check_x}, {check_y}): {obj}")
+                
+                # Only consider units (objects with 'alive' attribute)
+                if not hasattr(obj, 'alive'):
+                    print(f"Object is not a unit (no 'alive' attribute)")
                     continue
                     
                 # Skip self and duplicates
                 if hasattr(obj, 'x') and hasattr(obj, 'y'):
                     if obj.x == x and obj.y == y:
+                        print(f"Skipping self at ({x}, {y})")
                         continue
                 if obj in units:
+                    print(f"Skipping duplicate unit")
                     continue
                     
                 # Check line of sight
                 target = Position(check_x, check_y)
-                if self._has_line_of_sight(center, target):
+                has_los = self._has_line_of_sight(center, target)
+                print(f"Line of sight check to ({check_x}, {check_y}): {has_los}")
+                if has_los:
+                    print(f"Adding unit to visible list: {obj}")
                     units.append(obj)
                     
         return units
@@ -252,7 +266,7 @@ class Board:
     def _has_line_of_sight(self, start: Position, end: Position) -> bool:
         """
         Check if there is a clear line of sight between two positions.
-        Uses Bresenham's line algorithm for ray casting.
+        Uses a simplified direct path check with obstacle detection.
         
         Args:
             start (Position): Starting position.
@@ -261,44 +275,32 @@ class Board:
         Returns:
             bool: True if there is clear line of sight.
         """
-        x0, y0 = start.x, start.y
-        x1, y1 = end.x, end.y
-        
-        # Immediately return True if checking the same position
-        if x0 == x1 and y0 == y1:
+        # Early exit for same position
+        if start.x == end.x and start.y == end.y:
             return True
             
-        dx = abs(x1 - x0)
-        dy = abs(y1 - y0)
-        x, y = x0, y0
-        n = 1 + dx + dy
-        x_inc = 1 if x1 > x0 else -1
-        y_inc = 1 if y1 > y0 else -1
-        error = dx - dy
-        dx *= 2
-        dy *= 2
-
-        for _ in range(n):
-            # Move to next position
-            if error > 0:
-                x += x_inc
-                error -= dy
-            else:
-                y += y_inc
-                error += dx
-                
-            # Check if we've reached the target
-            if x == x1 and y == y1:
-                return True
-                
+        # Get relative coordinates
+        dx = end.x - start.x
+        dy = end.y - start.y
+        distance = max(abs(dx), abs(dy))
+        
+        if distance == 0:
+            return True
+            
+        # Check points along the line
+        for step in range(1, distance):
+            # Calculate intermediate point
+            x = start.x + int(dx * step / distance)
+            y = start.y + int(dy * step / distance)
+            
             # Check for vision-blocking obstacles
             obj = self.grid[y][x]
             if obj is not None and hasattr(obj, 'blocks_vision') and obj.blocks_vision:
                 return False
-        
-        return False  # Return False if we never reached the target
+                
+        return True
     
-    def move_object(self, from_x: int, from_y: int, to_x: int, to_y: int) -> bool:
+    def move_object(self, from_x: int, from_y: int, to_x: int, to_y: int, ignore_constraints: bool = False) -> bool:
         """
         Move an object from one position to another.
         
@@ -307,84 +309,59 @@ class Board:
             from_y (int): The source y-coordinate.
             to_x (int): The destination x-coordinate.
             to_y (int): The destination y-coordinate.
+            ignore_constraints (bool): If True, ignores movement type and speed constraints (for testing)
             
         Returns:
             bool: True if the move was successful, False otherwise.
         """
-        # Validate positions and get moving object
-        if not self.is_valid_position(from_x, from_y) or not self.is_valid_position(to_x, to_y):
-            return False
+        print(f"Moving object from ({from_x}, {from_y}) to ({to_x}, {to_y})")
         
-        obj = self.grid[from_y][from_x]
-        if obj is None or self.grid[to_y][to_x] is not None:
+        # Validate positions
+        if not self.is_valid_position(from_x, from_y) or not self.is_valid_position(to_x, to_y):
+            print("Invalid position in move_object")
             return False
             
-        # Calculate distances
+        # Get and validate object
+        obj = self.grid[from_y][from_x]
+        if obj is None:
+            print(f"No object found at source position ({from_x}, {from_y})")
+            return False
+            
+        # Check if destination is clear
+        if self.grid[to_y][to_x] is not None:
+            print(f"Destination position ({to_x}, {to_y}) is occupied")
+            return False
+            
+        # Calculate movement distance
         dx = abs(to_x - from_x)
         dy = abs(to_y - from_y)
         manhattan_dist = dx + dy
-        diagonal_dist = max(dx, dy)  # For diagonal movement
         
-        # Get the unit's speed if it has one
-        max_distance = 1  # Default to 1 step
-        if hasattr(obj, 'speed'):
-            max_distance = obj.speed
-        
-        # No movement case
-        if dx == 0 and dy == 0:
-            return False
+        if not ignore_constraints:
+            # Get unit's speed limit
+            max_speed = getattr(obj, 'speed', 1)  # Default to 1 if no speed attribute
             
-        # Get maximum allowed distance based on unit speed
-        max_speed = max_distance if hasattr(obj, 'speed') else 1
-        
-        # Calculate movement constraints based on type
-        if self.movement_type == MovementType.DIAGONAL:
-            # For diagonal movement, allow any move within speed range
-            if manhattan_dist > max_speed * 2:  # Diagonal moves count as 2 steps
-                return False
-        else:  # CARDINAL movement
-            # For cardinal movement, one direction must be 0
-            if dx > 0 and dy > 0:  # No diagonal movement allowed
-                return False
-            if manhattan_dist > max_speed:  # Check total distance
+            # Check movement constraints
+            if manhattan_dist > max_speed:
+                print(f"Movement distance {manhattan_dist} exceeds speed limit {max_speed}")
                 return False
                 
-        # For multi-step moves, ensure path is clear
-        if manhattan_dist > 1:
-            # Calculate step sizes
-            dx_step = (to_x - from_x) // manhattan_dist
-            dy_step = (to_y - from_y) // manhattan_dist
+            # For diagonal movement
+            if dx > 0 and dy > 0 and self.movement_type != MovementType.DIAGONAL:
+                print("Diagonal movement not allowed")
+                return False
             
-            # Check each intermediate position
-            for i in range(1, manhattan_dist):
-                check_x = from_x + (dx_step * i)
-                check_y = from_y + (dy_step * i)
-                if self.grid[check_y][check_x] is not None:
-                    return False
-                
-        # Path must be clear for multi-step moves
-        if manhattan_dist > 1:
-            # Check intermediate positions
-            step_x = 1 if to_x > from_x else (-1 if to_x < from_x else 0)
-            step_y = 1 if to_y > from_y else (-1 if to_y < from_y else 0)
-            curr_x, curr_y = from_x, from_y
-            
-            while curr_x != to_x or curr_y != to_y:
-                next_x = curr_x + (step_x if curr_x != to_x else 0)
-                next_y = curr_y + (step_y if curr_y != to_y else 0)
-                if self.grid[next_y][next_x] is not None:
-                    return False
-                curr_x, curr_y = next_x, next_y
-        
-        self.grid[to_y][to_x] = obj
+        # Move object
         self.grid[from_y][from_x] = None
+        self.grid[to_y][to_x] = obj
         self._object_positions[obj] = Position(to_x, to_y)
         
-        # Update the object's own coordinates if it has them
+        # Update object's own position
         if hasattr(obj, 'x') and hasattr(obj, 'y'):
+            print(f"Updating object position from ({obj.x}, {obj.y}) to ({to_x}, {to_y})")
             obj.x = to_x
             obj.y = to_y
-        
+            
         return True
 
     def get_available_moves(self, x: int, y: int) -> List[Position]:

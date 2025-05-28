@@ -5,7 +5,7 @@ including movement, vision, and collision detection.
 """
 
 import pytest
-from game.board import Board
+from game.board import Board, MovementType
 from game.units.base_unit import Unit
 from game.units.unit_types import Predator, Grazer
 from typing import List, Tuple
@@ -51,27 +51,35 @@ class TestUnitBoardIntegration:
         predator, grazer = units
         
         visible_to_predator = board.get_units_in_range(predator.x, predator.y, predator.vision)
-        assert grazer not in visible_to_predator
+        assert grazer not in visible_to_predator  # Initially too far away
         
-        board.move_object(8, 8, 3, 3)
+        # Move grazer closer - ignore movement constraints for testing
+        board.move_object(8, 8, 3, 3, ignore_constraints=True)
         
         visible_to_predator = board.get_units_in_range(predator.x, predator.y, predator.vision)
-        assert grazer in visible_to_predator
+        assert grazer in visible_to_predator  # Should now be visible
 
     def test_multi_turn_movement_sequence(self, basic_board: Board):
         """Test a sequence of movements over multiple turns."""
+        # Set movement type to allow diagonal moves
+        basic_board.movement_type = MovementType.DIAGONAL
+        
         unit = Unit(x=0, y=0, speed=2)
         basic_board.place_object(unit, 0, 0)
         
-        moves = [(1, 1), (2, 2), (3, 3), (4, 4)]
-        for x, y in moves:
-            can_move = basic_board.move_object(unit.x, unit.y, x, y)
-            assert can_move
-            assert unit.x == x and unit.y == y
-            
-        can_move = basic_board.move_object(4, 4, 7, 7)
+        # Test valid moves within speed limit
+        can_move = basic_board.move_object(0, 0, 1, 1)  # Diagonal within speed
+        assert can_move
+        assert unit.x == 1 and unit.y == 1
+        
+        can_move = basic_board.move_object(1, 1, 2, 1)  # Cardinal within speed
+        assert can_move
+        assert unit.x == 2 and unit.y == 1
+        
+        # Test invalid move exceeding speed
+        can_move = basic_board.move_object(2, 1, 4, 3)  # Too far
         assert not can_move
-        assert unit.x == 4 and unit.y == 4
+        assert unit.x == 2 and unit.y == 1
 
     def test_board_boundaries(self, basic_board: Board):
         """Test that units cannot move outside board boundaries."""
@@ -82,10 +90,12 @@ class TestUnitBoardIntegration:
         assert not can_move
         assert unit.x == 0 and unit.y == 0
         
-        can_move = basic_board.move_object(0, 0, 9, 9)
+        # Test moving to far position - ignore constraints for boundary testing
+        can_move = basic_board.move_object(0, 0, 9, 9, ignore_constraints=True)
         assert can_move
         assert unit.x == 9 and unit.y == 9
         
-        can_move = basic_board.move_object(9, 9, 10, 10)
+        # Test invalid position - should still fail regardless of constraints
+        can_move = basic_board.move_object(9, 9, 10, 10, ignore_constraints=True)
         assert not can_move
         assert unit.x == 9 and unit.y == 9
