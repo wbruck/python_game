@@ -104,7 +104,7 @@ class Unit:
         }
         
 
-    def _consume(self, target) -> int:
+    def _consume(self, target) -> float:
         """
         Consume another unit or plant for energy.
         
@@ -112,17 +112,27 @@ class Unit:
             target: The unit or plant to consume
             
         Returns:
-            int: Amount of energy gained from consumption
+            float: Amount of energy gained from consumption
         """
         if hasattr(target, 'decay_energy'):
+            # Consume dead units
             energy_gained = target.decay_energy
             target.decay_energy = 0
+            self.energy += energy_gained
+            return energy_gained
+        elif hasattr(target, 'consume'):
+            # Consume plants using their consume method
+            energy_needed = self.max_energy - self.energy
+            energy_gained = target.consume(energy_needed)
+            self.energy += energy_gained
             return energy_gained
         elif hasattr(target, 'energy'):
+            # Fallback for other energy-containing objects
             energy_gained = target.energy
             target.energy = 0
+            self.energy += energy_gained
             return energy_gained
-        return 0
+        return 0.0
 
     def gain_experience(self, action_type, amount=1):
         """

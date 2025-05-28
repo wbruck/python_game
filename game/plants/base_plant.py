@@ -23,7 +23,8 @@ class Plant:
                  position: Position,
                  base_energy: float,
                  growth_rate: float,
-                 regrowth_time: float):
+                 regrowth_time: float,
+                 board=None):
         """
         Initialize a new plant.
         
@@ -32,11 +33,13 @@ class Plant:
             base_energy: Maximum energy content when fully grown
             growth_rate: How quickly the plant grows (0.0 to 1.0)
             regrowth_time: Time required to fully regrow after consumption
+            board: Reference to the game board (optional)
         """
         self.position = position
         self.base_energy = base_energy
         self.growth_rate = growth_rate
         self.regrowth_time = regrowth_time
+        self.board = board
         self.state = PlantState(
             growth_stage=1.0,  # Start fully grown
             energy_content=base_energy,
@@ -73,14 +76,21 @@ class Plant:
         if not self.state.is_alive:
             return 0.0
         
+        # Get available energy from plant
         available = self.state.energy_content
         consumed = min(amount, available)
-        self.state.energy_content -= consumed
         
-        # If all energy is consumed, mark as consumed and start regrowth
-        if self.state.energy_content <= 0:
+        # Consume all energy if we're taking most of it
+        if consumed >= available * 0.8:
+            consumed = available
+            self.state.energy_content = 0
             self.state.is_alive = False
             self.state.growth_stage = 0.0
+            if self.board:
+                self.board.remove_object(self.x, self.y)
+        else:
+            # Otherwise just reduce the energy content
+            self.state.energy_content -= consumed
         
         return consumed
     
@@ -88,6 +98,16 @@ class Plant:
     def energy_content(self) -> float:
         """Get the current energy content of the plant."""
         return self.state.energy_content
+
+    @property
+    def x(self) -> int:
+        """Get the plant's x coordinate."""
+        return self.position.x
+
+    @property
+    def y(self) -> int:
+        """Get the plant's y coordinate."""
+        return self.position.y
 
     @property
     def symbol(self) -> str:

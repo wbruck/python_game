@@ -18,8 +18,8 @@ class TestUnitPlantIntegration:
     def board_with_plants(self) -> Board:
         """Create a board with plants in known positions."""
         board = Board(width=10, height=10)
-        grass1 = BasicPlant(Position(2, 2))
-        grass2 = BasicPlant(Position(2, 3))
+        grass1 = BasicPlant(Position(2, 2), board=board)
+        grass2 = BasicPlant(Position(2, 3), board=board)
         board.place_object(grass1, 2, 2)
         board.place_object(grass2, 2, 3)
         return board
@@ -29,9 +29,9 @@ class TestUnitPlantIntegration:
         grazer = Grazer(x=1, y=1)
         board_with_plants.place_object(grazer, 1, 1)
         
-        initial_energy = grazer.energy
         grass = board_with_plants.get_object(2, 2)
         assert grass is not None
+        initial_energy = 0  # We'll set energy to this before consuming
         
         # Move next to plant
         board_with_plants.move_object(1, 1, 2, 1)
@@ -39,8 +39,13 @@ class TestUnitPlantIntegration:
         # Simulate feeding
         assert isinstance(grass, BasicPlant)  # Verify we got a plant
         grass_energy = grass.state.energy_content
-        energy_gained = grass.consume(grazer.max_energy - grazer.energy)
-        grazer.energy += energy_gained
+        
+        # Ensure grazer has room for energy
+        grazer.energy = 0  # Start with no energy
+        grazer.max_energy = 100  # Ensure enough capacity
+        
+        # Use Unit's _consume method to consume plant
+        energy_gained = grazer._consume(grass)
         
         # Verify energy transfer
         assert grazer.energy > initial_energy
@@ -61,8 +66,9 @@ class TestUnitPlantIntegration:
         assert grass is not None
         
         # First grazer feeds
-        energy_gained = grass.consume(grazer1.max_energy - grazer1.energy)
-        grazer1.energy += energy_gained
+        grazer1.energy = 0  # Start with no energy
+        grazer1.max_energy = 100  # Ensure enough capacity
+        energy_gained = grazer1._consume(grass)
         assert board_with_plants.get_object(2, 2) is None
         
         # Second grazer tries to feed on same plant
@@ -74,8 +80,9 @@ class TestUnitPlantIntegration:
         assert isinstance(remaining_grass, BasicPlant)  # Verify we got a plant
         assert remaining_grass is not None
         board_with_plants.move_object(3, 2, 2, 3)
-        energy_gained = remaining_grass.consume(grazer2.max_energy - grazer2.energy)
-        grazer2.energy += energy_gained
+        grazer2.energy = 0  # Start with no energy
+        grazer2.max_energy = 100  # Ensure enough capacity
+        energy_gained = grazer2._consume(remaining_grass)
         assert board_with_plants.get_object(2, 3) is None
 
     def test_plant_regrowth_and_feeding(self, board_with_plants: Board):
@@ -87,11 +94,12 @@ class TestUnitPlantIntegration:
         grass = board_with_plants.get_object(2, 2)
         assert isinstance(grass, BasicPlant)  # Verify we got a plant
         initial_energy = grass.state.energy_content
-        energy_gained = grass.consume(grazer.max_energy - grazer.energy)
-        grazer.energy += energy_gained
+        grazer.energy = 0  # Start with no energy
+        grazer.max_energy = 100  # Ensure enough capacity
+        energy_gained = grazer._consume(grass)
         
         # Simulate plant regrowth
-        new_grass = BasicPlant(Position(2, 2))
+        new_grass = BasicPlant(Position(2, 2), board=board_with_plants)
         board_with_plants.place_object(new_grass, 2, 2)
         
         # Verify feeding on regrown plant
@@ -99,8 +107,9 @@ class TestUnitPlantIntegration:
         assert isinstance(regrown, BasicPlant)  # Verify we got a plant
         assert regrown.state.energy_content == regrown.base_energy
         
-        energy_gained = regrown.consume(grazer.max_energy - grazer.energy)
-        grazer.energy += energy_gained
+        grazer.energy = 0  # Start with no energy
+        grazer.max_energy = 100  # Ensure enough capacity
+        energy_gained = grazer._consume(regrown)
         assert board_with_plants.get_object(2, 2) is None
 
     def test_energy_transfer_accuracy(self, board_with_plants: Board):

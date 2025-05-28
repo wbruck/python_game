@@ -112,6 +112,9 @@ class Board:
         
         self.grid[y][x] = obj
         self._object_positions[obj] = Position(x, y)
+        # Add to plants set if it's a plant
+        if hasattr(obj, 'consume') and hasattr(obj, 'state'):
+            self._plants.add(obj)
         return True
     
     def get_units_in_range(self, x: int, y: int, range_: int) -> List[object]:
@@ -154,6 +157,8 @@ class Board:
         if obj is not None:
             self.grid[y][x] = None
             del self._object_positions[obj]
+            if obj in self._plants:
+                self._plants.remove(obj)
         return obj
 
     def get_object_position(self, obj: object) -> Optional[Position]:
