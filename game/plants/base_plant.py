@@ -85,6 +85,11 @@ class Plant:
         return consumed
     
     @property
+    def energy_content(self) -> float:
+        """Get the current energy content of the plant."""
+        return self.state.energy_content
+
+    @property
     def symbol(self) -> str:
         """Return the symbol used to represent this plant on the game board."""
         if not self.state.is_alive:

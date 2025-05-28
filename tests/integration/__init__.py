@@ -39,8 +39,8 @@ def basic_ecosystem(standard_board, standard_config):
     grazer = Grazer(x=8, y=8)
     game_loop.add_unit(predator)
     game_loop.add_unit(grazer)
-    standard_board.place_unit(predator, 1, 1)
-    standard_board.place_unit(grazer, 8, 8)
+    standard_board.place_object(predator, 1, 1)
+    standard_board.place_object(grazer, 8, 8)
     
     # Add basic plants
     grass = BasicPlant(Position(4, 4))

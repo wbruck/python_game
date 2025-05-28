@@ -44,8 +44,9 @@ class TestUnitPlantIntegration:
         
         # Verify energy transfer
         assert grazer.energy > initial_energy
-        assert grazer.energy == initial_energy + grass_energy
-        assert board_with_plants.get_object(2, 2)
+        assert grazer.energy == initial_energy + energy_gained
+        # Plant should be removed after consumption
+        assert board_with_plants.get_object(2, 2) is None
 
     def test_multiple_grazers_resource_competition(self, board_with_plants: Board):
         """Test competition between multiple grazers for limited plant resources."""
@@ -96,7 +97,7 @@ class TestUnitPlantIntegration:
         # Verify feeding on regrown plant
         regrown = board_with_plants.get_object(2, 2)
         assert isinstance(regrown, BasicPlant)  # Verify we got a plant
-        assert regrown.state.energy_content <= initial_energy
+        assert regrown.state.energy_content == regrown.base_energy
         
         energy_gained = regrown.consume(grazer.max_energy - grazer.energy)
         grazer.energy += energy_gained

@@ -23,6 +23,21 @@ class Config:
             "turn_delay": {"type": float, "min": 0.0, "max": 5.0}
         },
         "units": {
+            "predator": {
+                "base_energy": {"type": int, "min": 50, "max": 200},
+                "vision_range": {"type": int, "min": 1, "max": 10},
+                "attack_strength": {"type": int, "min": 5, "max": 30}
+            },
+            "grazer": {
+                "base_energy": {"type": int, "min": 40, "max": 150},
+                "vision_range": {"type": int, "min": 1, "max": 8},
+                "flee_speed": {"type": int, "min": 1, "max": 3}
+            },
+            "scavenger": {
+                "base_energy": {"type": int, "min": 60, "max": 180},
+                "vision_range": {"type": int, "min": 1, "max": 12},
+                "scavenge_efficiency": {"type": float, "min": 0.5, "max": 1.0}
+            },
             "initial_count": {
                 "predator": {"type": int, "min": 0, "max": 50},
                 "scavenger": {"type": int, "min": 0, "max": 50},
@@ -64,6 +79,21 @@ class Config:
             "turn_delay": 0.1  # seconds between turns
         },
         "units": {
+            "predator": {
+                "base_energy": 100,
+                "vision_range": 5,
+                "attack_strength": 15
+            },
+            "grazer": {
+                "base_energy": 80,
+                "vision_range": 4,
+                "flee_speed": 2
+            },
+            "scavenger": {
+                "base_energy": 90,
+                "vision_range": 6,
+                "scavenge_efficiency": 0.8
+            },
             "initial_count": {
                 "predator": 3,
                 "scavenger": 5,

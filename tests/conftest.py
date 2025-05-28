@@ -11,20 +11,43 @@ def mock_config():
     config.config = {
         "environment": {
             "cycle_length": 10,
-            "day_night_cycle": True
+            "day_night_cycle": True,
+            "seasonal_effects": True,
+            "season_length": 40
         },
         "game": {
-            "turn_delay": 0.0
+            "turn_delay": 0.0,
+            "initial_energy": 100
+        },
+        "units": {
+            "predator": {
+                "base_energy": 100,
+                "vision_range": 5,
+                "attack_strength": 15
+            },
+            "grazer": {
+                "base_energy": 80,
+                "vision_range": 4,
+                "flee_speed": 2
+            }
+        },
+        "plants": {
+            "growth_rate": 0.1,
+            "max_energy": 50,
+            "regrowth_time": 10
         }
     }
     return config
 
 @pytest.fixture
-def game_loop(mock_config):
-    """Create a GameLoop instance for testing."""
+def game_loop(board, mock_config):
+    """Create a GameLoop instance for testing with proper environmental cycles."""
     from game.game_loop import GameLoop
-    mock_board = Mock()
-    return GameLoop(mock_board, max_turns=100, config=mock_config)
+    return GameLoop(
+        board=board,
+        max_turns=100,
+        config=mock_config
+    )
 @pytest.fixture
 def board():
     """Create a standard 10x10 board with cardinal movement."""
