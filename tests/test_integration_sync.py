@@ -1,7 +1,7 @@
 """Integration tests focusing on state synchronization and interleaved actions."""
 
 import pytest
-from game.board import Board, MovementType
+from game.board import Board, MovementType, Position
 from game.units.base_unit import Unit
 from game.game_loop import GameLoop
 from game.plants.base_plant import Plant
@@ -112,7 +112,7 @@ def test_resource_state_consistency(sync_board):
         Unit(0, 0, unit_type="grazer"),
         Unit(3, 3, unit_type="grazer")
     ]
-    plant = Plant(2, 2)
+    plant = Plant(Position(2, 2), base_energy=100, growth_rate=0.1, regrowth_time=10)
     
     # Setup initial state
     sync_board.place_object(plant, 2, 2)

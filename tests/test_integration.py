@@ -165,10 +165,10 @@ def test_environmental_cycle_effects(test_game_loop, test_board):
 def test_multi_unit_interaction(test_game_loop, test_board):
     """Integration test for multiple unit interactions."""
     units = [
-        Predator(2, 2),
-        Grazer(7, 7),
-        Scavenger(3, 7),
-        Grazer(7, 2)
+            Predator(2, 2), # Default HP
+            Grazer(7, 7, hp=30), # Lower HP
+            Scavenger(3, 7), # Default HP
+            Grazer(7, 2, hp=30)  # Lower HP
     ]
     
     for unit in units:

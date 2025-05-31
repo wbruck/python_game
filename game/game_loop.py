@@ -118,21 +118,21 @@ class GameLoop:
         # 4. Shuffle units
         random.shuffle(self.units) # Added shuffle
         
-        # 5. Update living units (and sort before for deterministic action if needed, or remove sort)
-        # self.units.sort(key=lambda u: (u.x, u.y, id(u))) # Optional: sort if needed after shuffle
-        living_units = [unit for unit in self.units if unit.alive]
-        for unit in living_units:
-            # Ensure unit.update exists, not unit.act
+        # 5. Update units (living and dead)
+        for unit in self.units:
             if hasattr(unit, 'update') and callable(getattr(unit, 'update')):
-                unit.update(self.board) # Changed from unit.act to unit.update
-            else:
-                # Fallback or error if update method is missing
-                pass # Or log a warning: print(f"Warning: Unit {unit} missing update method.")
+                unit.update(self.board) # Call update for all units
 
-            # Apply energy costs after update
-            energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
-            if hasattr(unit, 'energy'):
-                unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
+            # Apply general energy costs (e.g. for existing) only to living units after their update
+            if unit.alive:
+                # Example: energy_cost_modifier for passive energy drain
+                # This specific passive drain was here, but unit actions also have costs.
+                # Ensure this doesn't conflict with costs in unit.move, unit.attack etc.
+                # The original code had a passive drain:
+                energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
+                if hasattr(unit, 'energy'): # Check if unit has energy attribute
+                    # Assuming a base passive energy cost of 1 per turn for living units
+                    unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
         
         # 6. Update plants
         growth_modifiers = {
@@ -165,10 +165,12 @@ class GameLoop:
 
         # Handle state transitions for newly dead units (This can be part of unit updates or a separate phase)
         # For now, keeping it after main updates as in original structure before this change.
-        dead_units = [unit for unit in self.units if not unit.alive and unit.state == "dead"]
-        for dead_unit in dead_units:
-            if hasattr(dead_unit, 'state'): # Check if unit has state before changing
-                 dead_unit.state = "decaying"
+        # The logic for dead_units changing state to "decaying" is now handled within Unit.update(),
+        # so the following block can be removed or commented out:
+        # dead_units = [unit for unit in self.units if not unit.alive and unit.state == "dead"]
+        # for dead_unit in dead_units:
+        #     if hasattr(dead_unit, 'state'): # Check if unit has state before changing
+        #          dead_unit.state = "decaying"
         
         # Add delay between turns if configured
         if self.turn_delay > 0:

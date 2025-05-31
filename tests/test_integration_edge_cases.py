@@ -3,7 +3,8 @@
 import pytest
 import random
 from game.board import Board, MovementType, Position
-from game.units.base_unit import Unit
+from game.units.base_unit import Unit # Keep for other tests if they use base Unit
+from game.units.unit_types import Grazer # Import Grazer
 from game.game_loop import GameLoop
 from game.plants.base_plant import Plant
 
@@ -90,9 +91,14 @@ def test_resource_competition(small_board):
     """Test multiple units competing for limited resources."""
     # Setup competing units
     units = [
-        Unit(0, 0, hp=120, energy=150, strength=5, speed=1, vision=4),  # Grazer
-        Unit(2, 2, hp=120, energy=150, strength=5, speed=1, vision=4)   # Grazer
+                Grazer(0, 0, config=None),
+                Grazer(2, 2, config=None)
     ]
+    for unit in units: # Set energy lower so they will eat
+        unit.energy = unit.max_energy // 2
+
+    # Note: Default Grazer energy is 130. The original test used Unit with energy 150.
+    # This might affect exact energy levels but the core logic (gaining some energy) should hold.
     plant = Plant(Position(1, 1), base_energy=50, growth_rate=0.1, regrowth_time=5)
     
     # Place objects

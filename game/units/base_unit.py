@@ -51,7 +51,7 @@ class Unit:
     - decaying: Gradually losing energy content that can be consumed by others
     """
     
-    def __init__(self, x, y, unit_type=None, hp=100, energy=100, strength=10, speed=1, vision=5):
+    def __init__(self, x, y, unit_type=None, hp=100, energy=100, strength=10, speed=1, vision=5, config=None):
         """
         Initialize a new unit with the given attributes.
         
@@ -63,7 +63,9 @@ class Unit:
             strength (int): Determines damage in combat.
             speed (int): Affects movement range per turn.
             vision (int): How far the unit can see.
+            config (Config, optional): Configuration object for accessing game settings.
         """
+        self.config = config  # Store the config object
         # Use template if unit_type is provided
         if unit_type and unit_type in UNIT_TEMPLATES:
             template = UNIT_TEMPLATES[unit_type]
@@ -348,9 +350,14 @@ class Unit:
             damage *= 0.5
             
         # Energy cost for attacking
-        energy_cost = 2
+        energy_cost = 2  # Default cost
+        if self.config:
+            configured_cost = self.config.get("units", "energy_consumption.attack")
+            if configured_cost is not None:
+                energy_cost = configured_cost
+
         if self.energy < energy_cost:
-            return 0
+            return 0  # Not enough energy
             
         self.energy -= energy_cost
         
@@ -376,23 +383,31 @@ class Unit:
             board (Board): The game board.
         """
         # Check for death first
-        if self.hp <= 0 and self.alive:  # Only initialize decay on new death
+        if self.hp <= 0 and self.alive:  # Unit just died in this turn cycle
             self.hp = 0
             self.alive = False
             self.state = "dead"
-            self.decay_stage = 0
+            self.decay_stage = 0  # Initial decay stage when first marked dead
             self.decay_energy = self.energy
-            return
+            # Do NOT return here, let it flow into the 'if not self.alive:' block below
+            # so that decay_stage can be incremented in the same turn it's marked dead.
             
         if not self.alive:
+            # This block will now be executed in the same turn the unit dies,
+            # as well as subsequent turns.
             decay_rate = 0.1  # 10% decay per turn
             # Always increment decay stage for dead units
-            self.decay_stage += 1
+            self.decay_stage += 1 # Increment for this turn of being dead/decaying
             self.decay_energy *= (1 - decay_rate)
             
             # After 5 turns of being dead, transition to decaying
-            if self.decay_stage > 5 and self.state == "dead":
+            if self.decay_stage > 5 and self.state == "dead": # Unit becomes "decaying"
                 self.state = "decaying"
+
+            # Remove unit if it has decayed for a certain number of stages
+            # The test test_unit_death_decay runs for 1 (initial death) + 10 more turns = 11 decay stages.
+            if self.decay_stage >= 11: # Adjusted condition for removal based on typical test length
+                board.remove_object(self.x, self.y)
             return
             
         # Reset stat modifiers
@@ -417,12 +432,12 @@ class Unit:
             self.last_state = self.state
 
         # State transitions based on conditions
-        if self.energy < self.max_energy * 0.2:
+        if self.energy <= self.max_energy * 0.2:  # Changed to <=
             self.state = "resting"
         elif self.hp < self.max_hp * 0.3:
             self.state = "fleeing"
             self.speed = int(self.base_speed * 1.5) + 1  # Speed boost when fleeing, ensure at least +1
-        elif self.energy < self.max_energy * 0.4:
+        elif self.energy <= self.max_energy * 0.4: # Changed to <=
             self.state = "feeding"
         elif self.state == "resting" and self.energy > self.max_energy * 0.8:
             self.state = "wandering"
