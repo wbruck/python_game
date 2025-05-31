@@ -5,6 +5,8 @@ This module implements the base Unit class with fundamental RPG-style stats and 
 All other unit types will inherit from this base class.
 """
 
+from game.plants.base_plant import Plant # Added import
+
 # Predefined unit templates for different roles
 UNIT_TEMPLATES = {
     "predator": {
@@ -273,49 +275,48 @@ class Unit:
         if not self.alive or self.state in ["dead", "decaying"]:
             return False
 
-        # Check food type and conditions
-        valid_food = False
-        if hasattr(food, "energy_value"):
-            valid_food = True
-        elif isinstance(food, Unit) and not food.alive:
-            # Initialize decay properties if needed
-            if not hasattr(food, 'decay_stage'):
-                food.decay_stage = 0
-            if not hasattr(food, 'decay_energy') or food.decay_energy is None:
-                food.decay_energy = food.energy
-            if food.decay_energy > 0:
-                valid_food = True
-                # Ensure food is marked as dead
-                food.state = "dead"
-            
-        if not valid_food:
-            return False
-            
-        # Check energy capacity
+        # Check energy capacity first, as it's common to all food types
         if self.energy >= self.max_energy:
             return False
-            
-        # Calculate energy gain
-        if isinstance(food, Unit) and not food.alive:
-            if food.decay_energy <= 0:
-                return False
-            energy_available = food.decay_energy
-            absorption_rate = 0.8  # 80% efficiency for consuming dead units
-            gained_energy = min(
-                energy_available,
-                self.max_energy - self.energy
-            ) * absorption_rate
-            food.decay_energy = 0  # Consume all decay energy
+
+        energy_gained = 0
+
+        if isinstance(food, Plant):
+            if food.state.is_alive and food.state.energy_content > 0:
+                needed_energy = self.max_energy - self.energy
+                # Let Plant.consume handle how much energy it can give
+                # Assuming 100% absorption efficiency for plants for now
+                energy_gained = food.consume(needed_energy)
+            else:
+                return False # Plant is not consumable
+        elif isinstance(food, Unit) and not food.alive:
+            # Initialize decay properties if needed (though should be set on death)
+            if not hasattr(food, 'decay_stage'): food.decay_stage = 0
+            if not hasattr(food, 'decay_energy') or food.decay_energy is None: food.decay_energy = food.max_energy # or current energy at time of death
+
+            if food.decay_energy > 0:
+                energy_available = food.decay_energy
+                absorption_rate = 0.8  # 80% efficiency for consuming dead units
+
+                # How much energy the unit can actually take
+                can_take = self.max_energy - self.energy
+                # How much to attempt to take from corpse considering absorption
+                attempt_to_gain = min(energy_available, can_take / absorption_rate if absorption_rate > 0 else float('inf'))
+
+                energy_gained = attempt_to_gain * absorption_rate
+                food.decay_energy -= attempt_to_gain # Reduce corpse energy by amount before absorption
+                food.decay_energy = max(0, food.decay_energy) # Ensure not negative
+            else:
+                return False # Dead unit has no energy
         else:
-            energy_available = food.energy_value
-            absorption_rate = 1.0  # 100% efficiency for plants
-            gained_energy = min(
-                energy_available,
-                self.max_energy - self.energy
-            ) * absorption_rate
+            return False # Not a valid food type
+
+        if energy_gained <= 0: # If no energy was gained (e.g. plant had none, or unit already full after calc)
+            return False
             
-        self.energy += gained_energy
-        
+        self.energy += energy_gained
+        self.energy = min(self.energy, self.max_energy) # Ensure not over max_energy
+
         # Only change state if we're alive and not in a restricted state
         if self.alive and self.state not in ["dead", "decaying"]:
             self.last_state = self.state
@@ -366,7 +367,7 @@ class Unit:
             
         return damage
     
-    def update(self, board):
+    def act(self, board):
         """
         Update the unit's state based on its surroundings and internal state.
         Implements a sophisticated state machine for decision making.
