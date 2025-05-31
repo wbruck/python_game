@@ -84,7 +84,7 @@ def test_process_turn(mock_shuffle, game_loop):
     assert game_loop.current_turn == 1
     mock_shuffle.assert_called_once_with(game_loop.units)
     unit1.update.assert_called_once_with(game_loop.board)
-    unit2.update.assert_not_called()  # Dead units should not be updated
+    unit2.update.assert_called_once_with(game_loop.board) # Dead units are updated for decay
     plant.update.assert_called_once()
         
 def test_environmental_cycles(game_loop):

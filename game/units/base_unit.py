@@ -10,25 +10,25 @@ from game.plants.base_plant import Plant # Added import
 # Predefined unit templates for different roles
 UNIT_TEMPLATES = {
     "predator": {
-        "hp": 100,
-        "energy": 120,
+        "hp": 120,
+        "energy": 80,
         "strength": 15,
         "speed": 2,
         "vision": 6
     },
     "scavenger": {
-        "hp": 80,
-        "energy": 100,
+        "hp": 100,
+        "energy": 110,
         "strength": 8,
-        "speed": 3,
+        "speed": 1,
         "vision": 8
     },
     "grazer": {
-        "hp": 120,
-        "energy": 150,
+        "hp": 90,
+        "energy": 130,
         "strength": 5,
         "speed": 1,
-        "vision": 4
+        "vision": 5
     }
 }
 
@@ -286,40 +286,32 @@ class Unit:
         if isinstance(food, Plant):
             if food.state.is_alive and food.state.energy_content > 0:
                 needed_energy = self.max_energy - self.energy
-                # Let Plant.consume handle how much energy it can give
-                # Assuming 100% absorption efficiency for plants for now
                 energy_gained = food.consume(needed_energy)
             else:
                 return False # Plant is not consumable
         elif isinstance(food, Unit) and not food.alive:
-            # Initialize decay properties if needed (though should be set on death)
             if not hasattr(food, 'decay_stage'): food.decay_stage = 0
-            if not hasattr(food, 'decay_energy') or food.decay_energy is None: food.decay_energy = food.max_energy # or current energy at time of death
+            if not hasattr(food, 'decay_energy') or food.decay_energy is None: food.decay_energy = food.max_energy
 
             if food.decay_energy > 0:
                 energy_available = food.decay_energy
-                absorption_rate = 0.8  # 80% efficiency for consuming dead units
-
-                # How much energy the unit can actually take
+                absorption_rate = 0.8
                 can_take = self.max_energy - self.energy
-                # How much to attempt to take from corpse considering absorption
                 attempt_to_gain = min(energy_available, can_take / absorption_rate if absorption_rate > 0 else float('inf'))
-
                 energy_gained = attempt_to_gain * absorption_rate
-                food.decay_energy -= attempt_to_gain # Reduce corpse energy by amount before absorption
-                food.decay_energy = max(0, food.decay_energy) # Ensure not negative
+                food.decay_energy -= attempt_to_gain
+                food.decay_energy = max(0, food.decay_energy)
             else:
                 return False # Dead unit has no energy
         else:
             return False # Not a valid food type
 
-        if energy_gained <= 0: # If no energy was gained (e.g. plant had none, or unit already full after calc)
+        if energy_gained <= 0:
             return False
             
         self.energy += energy_gained
-        self.energy = min(self.energy, self.max_energy) # Ensure not over max_energy
+        self.energy = min(self.energy, self.max_energy)
 
-        # Only change state if we're alive and not in a restricted state
         if self.alive and self.state not in ["dead", "decaying"]:
             self.last_state = self.state
             self.state = "feeding"
@@ -340,37 +332,31 @@ class Unit:
         if not self.alive or not target.alive or self.state in ["dead", "decaying", "feeding"]:
             return 0
             
-        # Calculate base damage
         damage = max(1, self.strength)
         
-        # Apply state modifiers
         if self.state == "hunting":
             damage *= 1.5
         elif self.state == "fleeing":
             damage *= 0.5
             
-        # Energy cost for attacking
-        energy_cost = 2  # Default cost
+        energy_cost = 2
         if self.config:
             configured_cost = self.config.get("units", "energy_consumption.attack")
             if configured_cost is not None:
                 energy_cost = configured_cost
 
         if self.energy < energy_cost:
-            return 0  # Not enough energy
+            return 0
             
         self.energy -= energy_cost
-        
-        # Apply damage
         target.hp -= damage
         
-        # Check if target died
         if target.hp <= 0:
             target.hp = 0
             target.alive = False
             target.state = "dead"
             target.decay_stage = 0
-            target.decay_energy = target.energy  # Initialize decay energy
+            target.decay_energy = target.energy
             
         return damage
     
@@ -382,40 +368,29 @@ class Unit:
         Args:
             board (Board): The game board.
         """
-        # Check for death first
-        if self.hp <= 0 and self.alive:  # Unit just died in this turn cycle
+        if self.hp <= 0 and self.alive:
             self.hp = 0
             self.alive = False
             self.state = "dead"
-            self.decay_stage = 0  # Initial decay stage when first marked dead
+            self.decay_stage = 0
             self.decay_energy = self.energy
-            # Do NOT return here, let it flow into the 'if not self.alive:' block below
-            # so that decay_stage can be incremented in the same turn it's marked dead.
             
         if not self.alive:
-            # This block will now be executed in the same turn the unit dies,
-            # as well as subsequent turns.
-            decay_rate = 0.1  # 10% decay per turn
-            # Always increment decay stage for dead units
-            self.decay_stage += 1 # Increment for this turn of being dead/decaying
+            self.decay_stage += 1
+            decay_rate = 0.1
             self.decay_energy *= (1 - decay_rate)
             
-            # After 5 turns of being dead, transition to decaying
-            if self.decay_stage > 5 and self.state == "dead": # Unit becomes "decaying"
+            if self.decay_stage > 5 and self.state == "dead":
                 self.state = "decaying"
 
-            # Remove unit if it has decayed for a certain number of stages
-            # The test test_unit_death_decay runs for 1 (initial death) + 10 more turns = 11 decay stages.
-            if self.decay_stage >= 11: # Adjusted condition for removal based on typical test length
+            if self.decay_stage >= 11:
                 board.remove_object(self.x, self.y)
             return
             
-        # Reset stat modifiers
         self.strength = self.base_strength
         self.speed = self.base_speed
         self.vision = self.base_vision
         
-        # Handle state duration limits before anything else
         if (self.state_duration > 10 and 
             self.state not in ["dead", "decaying", "resting", "wandering"] and 
             self.energy > self.max_energy * 0.4 and 
@@ -424,29 +399,26 @@ class Unit:
             self.state_duration = 0
             return
 
-        # Track state duration
         if self.state == self.last_state:
             self.state_duration += 1
         else:
             self.state_duration = 0
             self.last_state = self.state
 
-        # State transitions based on conditions
-        if self.energy <= self.max_energy * 0.2:  # Changed to <=
+        if self.energy <= self.max_energy * 0.2:
             self.state = "resting"
         elif self.hp < self.max_hp * 0.3:
             self.state = "fleeing"
-            self.speed = int(self.base_speed * 1.5) + 1  # Speed boost when fleeing, ensure at least +1
-        elif self.energy <= self.max_energy * 0.4: # Changed to <=
+            self.speed = int(self.base_speed * 1.5) + 1
+        elif self.energy <= self.max_energy * 0.4:
             self.state = "feeding"
         elif self.state == "resting" and self.energy > self.max_energy * 0.8:
             self.state = "wandering"
         elif self.state == "feeding" and self.energy > self.max_energy * 0.9:
             self.state = "wandering"
             
-        # Apply state-specific effects
         if self.state == "hunting":
             self.strength = int(self.base_strength * 1.2)
             self.vision = int(self.base_vision * 1.5)
         elif self.state == "resting":
-            self.energy = min(self.max_energy, self.energy + 2)  # Recover energy while resting
+            self.energy = min(self.max_energy, self.energy + 2)
