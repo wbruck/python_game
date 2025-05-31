@@ -50,6 +50,8 @@ def test_process_turn(mock_shuffle, game_loop):
     """Test processing a single turn."""
     # Set up mocks
     unit1 = Mock()
+    unit1.x = 0 # Add x attribute
+    unit1.y = 0 # Add y attribute
     unit1.alive = True
     unit1.base_vision = 10
     unit1.vision = 10
@@ -59,6 +61,8 @@ def test_process_turn(mock_shuffle, game_loop):
     unit1.apply_environmental_effects = Mock()
     
     unit2 = Mock()
+    unit2.x = 1 # Add x attribute
+    unit2.y = 1 # Add y attribute
     unit2.alive = False
     unit2.decay_stage = 0
     unit2.state = "decaying"
