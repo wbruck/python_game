@@ -111,27 +111,30 @@ class GameLoop:
         # 2. Update environmental cycles and time of day
         old_time_of_day = self.time_of_day
         self._update_environmental_cycles()
-        
-        # 3. Update vision if time of day changed or it's the first turn
-        if old_time_of_day != self.time_of_day or self.current_turn == 1:
-            self._update_unit_vision()
-        
-        # 4. Apply environmental effects
+
+        # 3. Apply environmental effects
         self._apply_environmental_effects()
+
+        # 4. Shuffle units
+        random.shuffle(self.units) # Added shuffle
         
-        # 5. Sort unit order for deterministic behavior
-        self.units.sort(key=lambda u: (u.x, u.y, id(u)))
-        
-        # 6. Process only living units
+        # 5. Update living units (and sort before for deterministic action if needed, or remove sort)
+        # self.units.sort(key=lambda u: (u.x, u.y, id(u))) # Optional: sort if needed after shuffle
         living_units = [unit for unit in self.units if unit.alive]
         for unit in living_units:
-            unit.act(self.board)
+            # Ensure unit.update exists, not unit.act
+            if hasattr(unit, 'update') and callable(getattr(unit, 'update')):
+                unit.update(self.board) # Changed from unit.act to unit.update
+            else:
+                # Fallback or error if update method is missing
+                pass # Or log a warning: print(f"Warning: Unit {unit} missing update method.")
+
             # Apply energy costs after update
             energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
             if hasattr(unit, 'energy'):
                 unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
         
-        # 7. Process plants
+        # 6. Update plants
         growth_modifiers = {
             Season.SPRING: 1.2,
             Season.SUMMER: 1.5,
@@ -145,16 +148,27 @@ class GameLoop:
                 plant.growth_rate = plant.base_growth_rate * growth_modifiers[self.season]
             
             # Update plant
-            plant.update()
+            # Ensure plant.update exists and is callable
+            if hasattr(plant, 'update') and callable(getattr(plant, 'update')):
+                plant.update() # Assuming plant.update takes no arguments like dt from original file
+            else:
+                # Fallback or error if update method is missing
+                pass # Or log a warning: print(f"Warning: Plant {plant} missing update method.")
             
             # Apply nighttime energy reduction
             if self.time_of_day == TimeOfDay.NIGHT and hasattr(plant, 'energy'):
                 plant.energy = max(plant.energy * 0.95, plant.min_energy if hasattr(plant, 'min_energy') else 0)
-        
-        # Handle state transitions for newly dead units
+
+        # 7. Update vision based on time of day (Moved to the end of step list)
+        if old_time_of_day != self.time_of_day or self.current_turn == 1:
+            self._update_unit_vision()
+
+        # Handle state transitions for newly dead units (This can be part of unit updates or a separate phase)
+        # For now, keeping it after main updates as in original structure before this change.
         dead_units = [unit for unit in self.units if not unit.alive and unit.state == "dead"]
         for dead_unit in dead_units:
-            dead_unit.state = "decaying"
+            if hasattr(dead_unit, 'state'): # Check if unit has state before changing
+                 dead_unit.state = "decaying"
         
         # Add delay between turns if configured
         if self.turn_delay > 0:

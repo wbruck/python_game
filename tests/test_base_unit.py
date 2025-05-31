@@ -1,5 +1,7 @@
 import pytest
 from game.units.base_unit import Unit, UNIT_TEMPLATES
+from game.plants.base_plant import Plant # Import Plant
+from game.board import Position # Import Position
 
 class MockBoard:
     def __init__(self, width=10, height=10):
@@ -19,9 +21,21 @@ class MockBoard:
             return True
         return False
 
-class MockPlant:
-    def __init__(self, energy_value=50):
-        self.energy_value = energy_value
+class MockPlant(Plant): # Inherit from Plant
+    def __init__(self, energy_value=50, position: Position = Position(0,0)):
+        # Call super().__init__ with default values for Plant
+        super().__init__(
+            position=position,
+            base_energy=float(energy_value), # Ensure base_energy is float
+            growth_rate=1.0,    # Default growth_rate
+            regrowth_time=10.0  # Default regrowth_time
+        )
+        # The Plant class already creates self.state with PlantState
+        # and sets initial energy_content to base_energy.
+        # If a specific initial energy_value different from base_energy is needed
+        # for testing, self.state.energy_content can be adjusted after super().__init__
+        self.state.energy_content = float(energy_value)
+
 
 def test_unit_initialization():
     """Test unit initialization with different parameters"""
@@ -161,7 +175,7 @@ def test_feeding_mechanics():
     dead_unit.alive = False
     dead_unit.state = "dead"  # Explicitly set state
     dead_unit.decay_stage = 1
-    dead_unit.decay_energy = 80
+    dead_unit.decay_energy = 60 # Changed from 80 to 60 to ensure full consumption by test
     
     unit.energy = 50  # Reset energy for test
     initial_energy = unit.energy

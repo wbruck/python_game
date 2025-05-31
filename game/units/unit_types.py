@@ -27,7 +27,7 @@ class Predator(Unit):
         super().__init__(x, y, hp=120, energy=80, strength=15, speed=2, vision=6)
         self.target = None
     
-    def act(self, board):
+    def update(self, board):
         """
         Update the predator's state based on its surroundings.
         
@@ -160,7 +160,7 @@ class Scavenger(Unit):
         # Scavengers have better vision but average stats otherwise
         super().__init__(x, y, hp=100, energy=110, strength=8, speed=1, vision=8)
     
-    def act(self, board):
+    def update(self, board):
         """
         Update the scavenger's state based on its surroundings.
         
@@ -283,7 +283,7 @@ class Grazer(Unit):
         self.exploration_moves = [(0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (-1, -1), (1, -1), (-1, 1)]
         self.next_exploration_move_index = 0
     
-    def act(self, board):
+    def update(self, board):
         """
         Update the grazer's state based on its surroundings.
         

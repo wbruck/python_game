@@ -367,7 +367,7 @@ class Unit:
             
         return damage
     
-    def act(self, board):
+    def update(self, board):
         """
         Update the unit's state based on its surroundings and internal state.
         Implements a sophisticated state machine for decision making.
