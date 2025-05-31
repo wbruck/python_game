@@ -119,13 +119,13 @@ class GameLoop:
         # 4. Apply environmental effects
         self._apply_environmental_effects()
         
-        # 5. Randomize unit order
-        random.shuffle(self.units)
+        # 5. Sort unit order for deterministic behavior
+        self.units.sort(key=lambda u: (u.x, u.y, id(u)))
         
         # 6. Process only living units
         living_units = [unit for unit in self.units if unit.alive]
         for unit in living_units:
-            unit.update(self.board)
+            unit.act(self.board)
             # Apply energy costs after update
             energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
             if hasattr(unit, 'energy'):

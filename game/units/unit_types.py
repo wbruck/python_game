@@ -27,7 +27,7 @@ class Predator(Unit):
         super().__init__(x, y, hp=120, energy=80, strength=15, speed=2, vision=6)
         self.target = None
     
-    def update(self, board):
+    def act(self, board):
         """
         Update the predator's state based on its surroundings.
         
@@ -77,7 +77,7 @@ class Predator(Unit):
             
             # If adjacent to prey, attack
             if abs(target.x - self.x) <= 1 and abs(target.y - self.y) <= 1:
-                damage = self._attack(target)
+                damage = self.attack(target)
                 if damage > 0:
                     self.gain_experience("combat")
                     if not target.alive:
@@ -85,10 +85,26 @@ class Predator(Unit):
             else:
                 # Move toward prey
                 print(f"Attempting to move: dx={dx}, dy={dy}")
-                move_success = board.move_unit(self, dx, dy)
-                print(f"Move success: {move_success}")
+                original_dx, original_dy = dx, dy
+                move_success = board.move_unit(self, original_dx, original_dy)
+                print(f"Move success (initial attempt): {move_success}")
+
+                if not move_success and original_dx != 0 and original_dy != 0:
+                    print(f"Initial diagonal move ({original_dx},{original_dy}) failed. Trying cardinal alternatives.")
+                    # Try moving horizontally
+                    move_success_h = board.move_unit(self, original_dx, 0)
+                    print(f"Move success (horizontal attempt): {move_success_h}")
+                    if move_success_h:
+                        move_success = True
+                    else:
+                        # Try moving vertically if horizontal failed
+                        move_success_v = board.move_unit(self, 0, original_dy)
+                        print(f"Move success (vertical attempt): {move_success_v}")
+                        if move_success_v:
+                            move_success = True
+
                 if move_success:
-                    print("Reducing energy by 2")
+                    print("Reducing energy by 2 due to hunting movement.")
                     self.energy -= 2  # Higher energy cost for hunting movement
                     self.gain_experience("hunting", 0.5)
 
@@ -144,7 +160,7 @@ class Scavenger(Unit):
         # Scavengers have better vision but average stats otherwise
         super().__init__(x, y, hp=100, energy=110, strength=8, speed=1, vision=8)
     
-    def update(self, board):
+    def act(self, board):
         """
         Update the scavenger's state based on its surroundings.
         
@@ -264,8 +280,10 @@ class Grazer(Unit):
         """
         # Grazers have higher energy capacity but lower strength
         super().__init__(x, y, hp=90, energy=130, strength=5, speed=1, vision=5)
+        self.exploration_moves = [(0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (-1, -1), (1, -1), (-1, 1)]
+        self.next_exploration_move_index = 0
     
-    def update(self, board):
+    def act(self, board):
         """
         Update the grazer's state based on its surroundings.
         
@@ -299,24 +317,34 @@ class Grazer(Unit):
         plants = board.get_plants_in_range(self.x, self.y, self.vision)
         
         if plants:
-            target = min(plants, key=lambda p: ((p.x - self.x)**2 + (p.y - self.y)**2)**0.5)
-            dx = max(min(target.x - self.x, self.speed), -self.speed)
-            dy = max(min(target.y - self.y, self.speed), -self.speed)
+            target = min(plants, key=lambda p: ((p.position.x - self.x)**2 + (p.position.y - self.y)**2)**0.5)
+            dx = max(min(target.position.x - self.x, self.speed), -self.speed)
+            dy = max(min(target.position.y - self.y, self.speed), -self.speed)
             
-            if abs(target.x - self.x) <= 1 and abs(target.y - self.y) <= 1:
-                energy_gained = self._consume(target)
-                if energy_gained > 0:
-                    # Grazers get more energy from plants
-                    self.energy += int(energy_gained * 0.3)
-                    self.gain_experience("feeding")
+            if abs(target.position.x - self.x) <= 1 and abs(target.position.y - self.y) <= 1:
+                # Call self.eat() which handles interaction with Plant.consume and energy update
+                if self.eat(target): # self.eat will update energy and state
+                    # Grazer specific bonus was: self.energy += int(energy_gained * 0.3)
+                    # This bonus logic needs to be integrated into Unit.eat or handled differently
+                    # For now, relying on Unit.eat to correctly provide energy.
+                    self.gain_experience("feeding") # Experience gain is fine here
             else:
-                if board.move_unit(self, dx, dy):
+                original_dx, original_dy = dx, dy
+                move_success = board.move_unit(self, original_dx, original_dy)
+                if not move_success and original_dx != 0 and original_dy != 0:
+                    # Try cardinal alternatives
+                    if board.move_unit(self, original_dx, 0):
+                        move_success = True
+                    elif board.move_unit(self, 0, original_dy):
+                        move_success = True
+
+                if move_success:
                     self.energy -= 1
                     self.gain_experience("feeding", 0.2)  # Small exp gain for finding food
         else:
-            # If no plants visible, explore randomly
-            dx = board.random.randint(-self.speed, self.speed)
-            dy = board.random.randint(-self.speed, self.speed)
+            # If no plants visible, explore deterministically
+            dx, dy = self.exploration_moves[self.next_exploration_move_index]
+            self.next_exploration_move_index = (self.next_exploration_move_index + 1) % len(self.exploration_moves)
             if board.move_unit(self, dx, dy):
                 self.energy -= 1
 
@@ -325,17 +353,26 @@ class Grazer(Unit):
         plants = board.get_plants_in_range(self.x, self.y, self.vision)
         
         if plants:
-            target = min(plants, key=lambda p: ((p.x - self.x)**2 + (p.y - self.y)**2)**0.5)
-            dx = max(min(target.x - self.x, self.speed), -self.speed)
-            dy = max(min(target.y - self.y, self.speed), -self.speed)
+            target = min(plants, key=lambda p: ((p.position.x - self.x)**2 + (p.position.y - self.y)**2)**0.5)
+            dx = max(min(target.position.x - self.x, self.speed), -self.speed)
+            dy = max(min(target.position.y - self.y, self.speed), -self.speed)
             
-            if abs(target.x - self.x) <= 1 and abs(target.y - self.y) <= 1:
-                energy_gained = self._consume(target)
-                if energy_gained > 0:
-                    self.gain_experience("feeding")
+            if abs(target.position.x - self.x) <= 1 and abs(target.position.y - self.y) <= 1:
+                # Call self.eat() which handles interaction with Plant.consume and energy update
+                if self.eat(target): # self.eat will update energy and state
+                    self.gain_experience("feeding") # Experience gain is fine here
             else:
-                board.move_unit(self, dx, dy)
-                self.energy -= 1
+                original_dx, original_dy = dx, dy
+                move_success = board.move_unit(self, original_dx, original_dy)
+                if not move_success and original_dx != 0 and original_dy != 0:
+                    # Try cardinal alternatives
+                    if board.move_unit(self, original_dx, 0):
+                        move_success = True
+                    elif board.move_unit(self, 0, original_dy):
+                        move_success = True
+
+                if move_success:
+                    self.energy -= 1
 
     def _flee_from_threats(self, board):
         """Move away from predators, using enhanced threat detection."""
