@@ -8,10 +8,11 @@ This script initializes and runs the ecosystem simulation game.
 import random
 import time
 import argparse
-from game.board import Board
+from game.board import Board, Position
 from game.game_loop import GameLoop
 from game.config import Config
 from game.units.unit_types import Predator, Scavenger, Grazer
+from game.plants.plant_types import BasicPlant # Import BasicPlant
 
 def parse_args():
     """Parse command line arguments."""
@@ -58,8 +59,29 @@ def setup_game(config):
     for _ in range(unit_counts.get("grazer", 0)):
         place_unit_randomly(Grazer)
     
-    # Plants will be added later when the plant system is implemented
+    # Place initial plants
+    num_plants = config.get("plants", "initial_count")
     
+    # Define a simple plant factory. BasePlant requires a position.
+    # place_random_plants will handle the actual random position.
+    # The board's place_object method updates its internal tracking
+    # but does not update the plant's own `position` attribute if it's a complex object.
+    # This is a known limitation for now.
+    def plant_factory():
+        # BasicPlant(position, base_energy, growth_rate, regrowth_time)
+        # Using default values from BasicPlant or arbitrary valid ones for now.
+        # The key is that `place_random_plants` needs a callable that returns a plant instance.
+        # The position passed here is a placeholder.
+        return BasicPlant(position=Position(0,0))
+
+    placed_plant_positions = board.place_random_plants(num_plants, plant_factory)
+
+    # Add placed plants to the game loop
+    for pos in placed_plant_positions:
+        plant_object = board.get_object(pos.x, pos.y)
+        if plant_object: # Ensure a plant was actually placed and retrieved
+            game_loop.add_plant(plant_object)
+
     return game_loop
 
 def display_game(game_loop):

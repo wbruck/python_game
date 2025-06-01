@@ -28,7 +28,17 @@ class Predator(Unit):
         """
         super().__init__(x, y, unit_type="predator", hp=hp, energy=80, strength=15, speed=2, vision=6, config=config)
         self.target = None
-    
+        if self.config:
+            self.energy_cost_move_hunt = self.config.get("units", "energy_consumption.move_hunt")
+            self.energy_cost_move_flee = self.config.get("units", "energy_consumption.move_flee")
+
+        if not hasattr(self, 'energy_cost_move_hunt') or self.energy_cost_move_hunt is None:
+            # Fallback to general move cost if specific hunt cost is not found or if config is None
+            self.energy_cost_move_hunt = self.energy_cost_move
+        if not hasattr(self, 'energy_cost_move_flee') or self.energy_cost_move_flee is None:
+            # Fallback for flee cost, potentially higher than normal move
+            self.energy_cost_move_flee = self.energy_cost_move + 1
+
     def update(self, board):
         """
         Update the predator's state based on its surroundings.
@@ -65,15 +75,7 @@ class Predator(Unit):
             if hasattr(obj, 'alive'):
                 visible_units.append(obj)
 
-        # print(f"Visible units for predator at ({self.x}, {self.y}) via self.look(): {len(visible_units)}") # DEBUG
-        # for unit in visible_units: # DEBUG
-        #     if hasattr(unit, 'x') and hasattr(unit, 'y'): # DEBUG
-        #          print(f"- Found unit at ({unit.x}, {unit.y}): {type(unit).__name__}, alive: {unit.alive}") # DEBUG
-        #     else: # DEBUG
-        #          print(f"- Found non-unit object or unit missing x/y: {type(unit).__name__}") # DEBUG
-
         potential_prey = [u for u in visible_units if isinstance(u, (Grazer, Scavenger)) and u.alive]
-        # print(f"Potential prey found: {len(potential_prey)}") # DEBUG
         
         if potential_prey:
             target = min(potential_prey, key=lambda u: ((u.x - self.x)**2 + (u.y - self.y)**2)**0.5)
@@ -94,32 +96,21 @@ class Predator(Unit):
                         self.gain_experience("hunting")
                         self.eat(target)
             else:
-                # print(f"DEBUG Predator._hunt_prey: id={id(self)} attempting to move towards prey at ({target.x},{target.y}) with preferred dx={dx}, dy={dy}") #DEBUG
                 moved = self.move(dx, dy, board)
                 if not moved and (dx != 0 or dy != 0):
-                    # print(f"DEBUG Predator._hunt_prey: id={id(self)} initial move dx={dx}, dy={dy} failed. Trying cardinal components.") #DEBUG
                     cardinal_dx = 0 if target.x == self.x else (1 if target.x > self.x else -1)
                     cardinal_dy = 0 if target.y == self.y else (1 if target.y > self.y else -1)
                     if cardinal_dx != 0 and self.move(cardinal_dx, 0, board):
                         moved = True
-                        # print(f"DEBUG Predator._hunt_prey: id={id(self)} cardinal move dx={cardinal_dx}, dy=0 succeeded.") #DEBUG
                     elif cardinal_dy != 0 and self.move(0, cardinal_dy, board):
                         moved = True
-                        # print(f"DEBUG Predator._hunt_prey: id={id(self)} cardinal move dx=0, dy={cardinal_dy} succeeded.") #DEBUG
 
                 if moved:
-                    hunt_move_cost = 2
-                    if self.config:
-                        temp_cost = self.config.get("units", "energy_consumption.move_hunt")
-                        if temp_cost is not None: hunt_move_cost = temp_cost
-                    self.energy -= hunt_move_cost
+                    self.energy -= self.energy_cost_move_hunt
                     self.gain_experience("hunting", 0.5)
-                # else: # DEBUG
-                    # print(f"DEBUG Predator._hunt_prey: id={id(self)} failed to make any move towards prey.") #DEBUG
 
     def _find_closest_food(self, board):
         """Find and move toward the closest food source (typically dead units for Predator)."""
-        # print(f"DEBUG Predator._find_closest_food: id={id(self)}, x={self.x}, y={self.y}, speed={self.speed}, state={self.state}") #DEBUG
         visible_objects_data = self.look(board)
         food_sources = [item[0] for item in visible_objects_data if hasattr(item[0], 'alive') and not item[0].alive and hasattr(item[0], 'decay_stage') and item[0].decay_stage < 3]
 
@@ -130,23 +121,18 @@ class Predator(Unit):
             else:
                 move_dx = 1 if target.x > self.x else (-1 if target.x < self.x else 0)
                 move_dy = 1 if target.y > self.y else (-1 if target.y < self.y else 0)
-                # print(f"DEBUG Predator._find_closest_food: id={id(self)} attempting move towards food with dx={move_dx}, dy={move_dy}") #DEBUG
                 moved = self.move(move_dx, move_dy, board)
                 if not moved and (move_dx != 0 or move_dy != 0):
-                    # print(f"DEBUG Predator._find_closest_food: id={id(self)} initial move dx={move_dx}, dy={move_dy} failed. Trying cardinal.") #DEBUG
                     if move_dx != 0 and self.move(move_dx, 0, board): moved = True
                     elif move_dy != 0 and self.move(0, move_dy, board): moved = True
 
                 if moved:
-                    move_cost = 1
-                    if self.config:
-                        temp_cost = self.config.get("units", "energy_consumption.move")
-                        if temp_cost is not None: move_cost = temp_cost
-                    self.energy -= move_cost
+                    # Foraging for food when hungry might use the base move cost or a specific graze/scavenge cost
+                    # For Predator, it's likely still a general move or a less intensive hunt move
+                    self.energy -= self.energy_cost_move
 
     def _flee_from_threats(self, board):
         """Predator flees from other (presumably stronger) Predators."""
-        # print(f"DEBUG Predator._flee_from_threats: id={id(self)}, x={self.x}, y={self.y}, speed={self.speed}, state={self.state}") #DEBUG
         visible_units = self.look(board)
         threats = [item[0] for item in visible_units if isinstance(item[0], Predator) and item[0] != self and item[0].alive]
         
@@ -169,22 +155,14 @@ class Predator(Unit):
                          flee_dx = panic_pos.x - self.x
                          flee_dy = panic_pos.y - self.y
 
-            # print(f"DEBUG Predator._flee_from_threats: id={id(self)} attempting to move with dx={flee_dx}, dy={flee_dy}") #DEBUG
             moved = self.move(flee_dx, flee_dy, board)
             if not moved and (flee_dx != 0 or flee_dy != 0):
-                # print(f"DEBUG Predator._flee_from_threats: id={id(self)} initial flee dx={flee_dx}, dy={flee_dy} failed. Trying cardinal.") #DEBUG
                 if flee_dx != 0 and self.move(flee_dx, 0, board): moved = True
                 elif flee_dy != 0 and self.move(0, flee_dy, board): moved = True
 
             if moved:
-                flee_cost = 3
-                if self.config:
-                    temp_cost = self.config.get("units", "energy_consumption.move_flee")
-                    if temp_cost is not None: flee_cost = temp_cost
-                self.energy -= flee_cost
+                self.energy -= self.energy_cost_move_flee
                 self.gain_experience("fleeing")
-            # else: # DEBUG
-                # print(f"DEBUG Predator._flee_from_threats: id={id(self)} failed to make any flee move.") #DEBUG
 
 class Scavenger(Unit):
     """
@@ -194,7 +172,16 @@ class Scavenger(Unit):
     """
     def __init__(self, x, y, hp=None, config=None):
         super().__init__(x, y, unit_type="scavenger", hp=hp, energy=110, strength=8, speed=1, vision=8, config=config)
-    
+        if self.config:
+            # Scavengers might have specific costs for scavenging movement or fleeing
+            self.energy_cost_move_scavenge = self.config.get("units", "energy_consumption.move_graze") # Using move_graze as a proxy
+            self.energy_cost_move_flee = self.config.get("units", "energy_consumption.move_flee")
+
+        if not hasattr(self, 'energy_cost_move_scavenge') or self.energy_cost_move_scavenge is None:
+            self.energy_cost_move_scavenge = self.energy_cost_move
+        if not hasattr(self, 'energy_cost_move_flee') or self.energy_cost_move_flee is None:
+            self.energy_cost_move_flee = self.energy_cost_move + 1
+
     def update(self, board):
         super().update(board)
         if not self.alive or self.state == "resting": return
@@ -211,7 +198,6 @@ class Scavenger(Unit):
 
     def _search_for_corpses(self, board):
         """Search for dead units to consume."""
-        # print(f"DEBUG Scavenger._search_for_corpses: id={id(self)}, x={self.x}, y={self.y}, speed={self.speed}, base_speed={self.base_speed}, state={self.state}") #DEBUG
         visible_objects_data = self.look(board)
         corpses = [item[0] for item in visible_objects_data if hasattr(item[0], 'alive') and not item[0].alive and hasattr(item[0], 'decay_stage') and item[0].decay_stage < 4]
         
@@ -222,36 +208,21 @@ class Scavenger(Unit):
             else:
                 move_dx = 1 if target.x > self.x else (-1 if target.x < self.x else 0)
                 move_dy = 1 if target.y > self.y else (-1 if target.y < self.y else 0)
-                # print(f"DEBUG Scavenger._search_for_corpses: id={id(self)} attempting move towards corpse (dx={move_dx}, dy={move_dy})") #DEBUG
                 moved = self.move(move_dx, move_dy, board)
                 if not moved and (move_dx != 0 or move_dy != 0):
-                    # print(f"DEBUG Scavenger._search_for_corpses: id={id(self)} initial move (dx={move_dx}, dy={move_dy}) failed. Trying cardinal.") #DEBUG
                     if move_dx != 0:
-                        # print(f"DEBUG Scavenger._search_for_corpses: id={id(self)} Trying horizontal (dx={move_dx}, dy=0)") #DEBUG
                         if self.move(move_dx, 0, board):
                             moved = True
-                            # print(f"DEBUG Scavenger._search_for_corpses: id={id(self)} Horizontal move succeeded.") #DEBUG
                     if not moved and move_dy != 0:
-                        # print(f"DEBUG Scavenger._search_for_corpses: id={id(self)} Trying vertical (dx=0, dy={move_dy})") #DEBUG
                         if self.move(0, move_dy, board):
                             moved = True
-                            # print(f"DEBUG Scavenger._search_for_corpses: id={id(self)} Vertical move succeeded.") #DEBUG
 
                 if moved:
-                    move_cost = 1
-                    if self.config:
-                        temp_cost = self.config.get("units", "energy_consumption.move")
-                        if temp_cost is not None: move_cost = temp_cost
-                    self.energy -= move_cost
+                    self.energy -= self.energy_cost_move_scavenge
                     self.gain_experience("hunting", 0.2)
-                # else: # DEBUG
-                    # print(f"DEBUG Scavenger._search_for_corpses: id={id(self)} failed to move toward corpse.") #DEBUG
-        # else: # DEBUG
-            # print(f"DEBUG Scavenger._search_for_corpses: id={id(self)} no corpses found.") #DEBUG
 
     def _find_food(self, board):
         """Find any food source when hungry."""
-        # print(f"DEBUG Scavenger._find_food: id={id(self)}, x={self.x}, y={self.y}, speed={self.speed}, base_speed={self.base_speed}, state={self.state}") #DEBUG
         visible_objects_data = self.look(board)
         food_sources = []
         for item in visible_objects_data:
@@ -270,33 +241,20 @@ class Scavenger(Unit):
             else:
                 move_dx = 1 if target_x > self.x else (-1 if target_x < self.x else 0)
                 move_dy = 1 if target_y > self.y else (-1 if target_y < self.y else 0)
-                # print(f"DEBUG Scavenger._find_food: id={id(self)} attempting move towards food (dx={move_dx}, dy={move_dy})") #DEBUG
                 moved = self.move(move_dx, move_dy, board)
                 if not moved and (move_dx != 0 or move_dy != 0):
-                    # print(f"DEBUG Scavenger._find_food: id={id(self)} initial move (dx={move_dx}, dy={move_dy}) failed. Trying cardinal.") #DEBUG
                     if move_dx != 0:
-                        # print(f"DEBUG Scavenger._find_food: id={id(self)} Trying horizontal (dx={move_dx}, dy=0)") #DEBUG
                         if self.move(move_dx, 0, board):
                             moved = True
-                            # print(f"DEBUG Scavenger._find_food: id={id(self)} Horizontal move succeeded.") #DEBUG
                     if not moved and move_dy != 0:
-                        # print(f"DEBUG Scavenger._find_food: id={id(self)} Trying vertical (dx=0, dy={move_dy})") #DEBUG
                         if self.move(0, move_dy, board):
                             moved = True
-                            # print(f"DEBUG Scavenger._find_food: id={id(self)} Vertical move succeeded.") #DEBUG
 
                 if moved:
-                    move_cost = 1
-                    if self.config:
-                        temp_cost = self.config.get("units", "energy_consumption.move")
-                        if temp_cost is not None: move_cost = temp_cost
-                    self.energy -= move_cost
-        # else: # DEBUG
-            # print(f"DEBUG Scavenger._find_food: id={id(self)} no food found.") #DEBUG
+                    self.energy -= self.energy_cost_move_scavenge # Or general self.energy_cost_move if hungry foraging is different
 
     def _flee_from_threats(self, board):
         """Scavenger flees from Predators."""
-        # print(f"DEBUG Scavenger._flee_from_threats: id={id(self)}, x={self.x}, y={self.y}, speed={self.speed}, state={self.state}") #DEBUG
         visible_units = self.look(board)
         threats = [item[0] for item in visible_units if isinstance(item[0], Predator) and item[0].alive]
         
@@ -319,22 +277,14 @@ class Scavenger(Unit):
                          flee_dx = panic_pos.x - self.x
                          flee_dy = panic_pos.y - self.y
 
-            # print(f"DEBUG Scavenger._flee_from_threats: id={id(self)} attempting to move with dx={flee_dx}, dy={flee_dy}") #DEBUG
             moved = self.move(flee_dx, flee_dy, board)
             if not moved and (flee_dx != 0 or flee_dy != 0):
-                # print(f"DEBUG Scavenger._flee_from_threats: id={id(self)} initial flee dx={flee_dx}, dy={flee_dy} failed. Trying cardinal.") #DEBUG
                 if flee_dx != 0 and self.move(flee_dx, 0, board): moved = True
                 elif flee_dy != 0 and self.move(0, flee_dy, board): moved = True
             
             if moved:
-                flee_cost = 2
-                if self.config:
-                    temp_cost = self.config.get("units", "energy_consumption.move_flee")
-                    if temp_cost is not None: flee_cost = temp_cost
-                self.energy -= flee_cost
+                self.energy -= self.energy_cost_move_flee
                 self.gain_experience("fleeing")
-            # else: # DEBUG
-                # print(f"DEBUG Scavenger._flee_from_threats: id={id(self)} failed to make any flee move.") #DEBUG
 
 class Grazer(Unit):
     """
@@ -346,7 +296,15 @@ class Grazer(Unit):
         super().__init__(x, y, unit_type="grazer", hp=hp, energy=130, strength=5, speed=1, vision=5, config=config)
         self.exploration_moves = [(0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (-1, -1), (1, -1), (-1, 1)]
         self.next_exploration_move_index = 0
-    
+        if self.config:
+            self.energy_cost_move_graze = self.config.get("units", "energy_consumption.move_graze")
+            self.energy_cost_move_flee = self.config.get("units", "energy_consumption.move_flee")
+
+        if not hasattr(self, 'energy_cost_move_graze') or self.energy_cost_move_graze is None:
+            self.energy_cost_move_graze = self.energy_cost_move
+        if not hasattr(self, 'energy_cost_move_flee') or self.energy_cost_move_flee is None:
+            self.energy_cost_move_flee = self.energy_cost_move + 1 # Default flee cost
+
     def update(self, board):
         super().update(board)
         if not self.alive:
@@ -357,11 +315,9 @@ class Grazer(Unit):
         
         if threats:
             self.state = "fleeing"
-            # print(f"DEBUG Grazer.update: id={id(self)} state changed to fleeing due to threats.") #DEBUG
             self._flee_from_threats(board, threats) # Pass threats to avoid re-calculating
         elif self.energy < self.max_energy * 0.4: # Adjusted threshold for consistency
             self.state = "hungry"
-            # print(f"DEBUG Grazer.update: id={id(self)} state changed to hungry.") #DEBUG
             self._find_food(board)
         else:
             self.state = "grazing" # Default state if not fleeing or hungry
@@ -369,7 +325,6 @@ class Grazer(Unit):
 
     def _graze(self, board):
         """Wander to find and consume plants."""
-        # print(f"DEBUG Grazer._graze: id={id(self)}, x={self.x}, y={self.y}, speed={self.speed}, base_speed={self.base_speed}, state={self.state}") #DEBUG
         visible_plants_data = self.look(board) # self.look() returns list of (obj,x,y)
         plants = [item[0] for item in visible_plants_data if isinstance(item[0], Plant)]
 
@@ -381,29 +336,23 @@ class Grazer(Unit):
             else:
                 move_dx = 1 if target.position.x > self.x else (-1 if target.position.x < self.x else 0)
                 move_dy = 1 if target.position.y > self.y else (-1 if target.position.y < self.y else 0)
-                # print(f"DEBUG Grazer._graze: id={id(self)} attempting move towards plant with dx={move_dx}, dy={move_dy}") #DEBUG
                 moved = self.move(move_dx, move_dy, board)
                 if not moved and (move_dx != 0 or move_dy != 0):
-                    # print(f"DEBUG Grazer._graze: id={id(self)} initial move dx={move_dx}, dy={move_dy} failed. Trying cardinal components.") #DEBUG
                     if move_dx != 0 and self.move(move_dx, 0, board):
                         moved = True
-                        # print(f"DEBUG Grazer._graze: id={id(self)} cardinal move dx={move_dx}, dy=0 succeeded.") #DEBUG
                     elif move_dy != 0 and self.move(0, move_dy, board):
                         moved = True
-                        # print(f"DEBUG Grazer._graze: id={id(self)} cardinal move dx=0, dy={move_dy} succeeded.") #DEBUG
                 if moved:
-                    self.energy -= 1
+                    self.energy -= self.energy_cost_move_graze
                     self.gain_experience("feeding", 0.2)
         else:
             explore_dx, explore_dy = self.exploration_moves[self.next_exploration_move_index]
             self.next_exploration_move_index = (self.next_exploration_move_index + 1) % len(self.exploration_moves)
-            # print(f"DEBUG Grazer._graze: id={id(self)} attempting random exploration move dx={explore_dx}, dy={explore_dy}") #DEBUG
             if self.move(explore_dx, explore_dy, board):
-                self.energy -= 1
+                self.energy -= self.energy_cost_move_graze # Use graze cost for exploration
 
     def _find_food(self, board):
         """Find closest plant when hungry."""
-        # print(f"DEBUG Grazer._find_food: id={id(self)}, x={self.x}, y={self.y}, speed={self.speed}, base_speed={self.base_speed}, state={self.state}") #DEBUG
         visible_plants_data = self.look(board)
         plants = [item[0] for item in visible_plants_data if isinstance(item[0], Plant)]
         
@@ -415,23 +364,18 @@ class Grazer(Unit):
             else:
                 move_dx = 1 if target.position.x > self.x else (-1 if target.position.x < self.x else 0)
                 move_dy = 1 if target.position.y > self.y else (-1 if target.position.y < self.y else 0)
-                # print(f"DEBUG Grazer._find_food: id={id(self)} attempting move towards plant with dx={move_dx}, dy={move_dy}") #DEBUG
                 moved = self.move(move_dx, move_dy, board)
                 if not moved and (move_dx != 0 or move_dy != 0):
-                    # print(f"DEBUG Grazer._find_food: id={id(self)} initial move dx={move_dx}, dy={move_dy} failed. Trying cardinal components.") #DEBUG
                     if move_dx != 0 and self.move(move_dx, 0, board):
                         moved = True
-                        # print(f"DEBUG Grazer._find_food: id={id(self)} cardinal move dx={move_dx}, dy=0 succeeded.") #DEBUG
                     elif move_dy != 0 and self.move(0, move_dy, board):
                         moved = True
-                        # print(f"DEBUG Grazer._find_food: id={id(self)} cardinal move dx=0, dy={move_dy} succeeded.") #DEBUG
                 if moved:
-                    self.energy -= 1
+                    self.energy -= self.energy_cost_move_graze # Use graze cost when actively finding food
         # No random move here, default to wandering/grazing if no specific food found by this targeted method
 
     def _flee_from_threats(self, board, threats): # Accept threats to avoid re-calculating
         """Move away from predators."""
-        # print(f"DEBUG Grazer._flee_from_threats: id={id(self)}, x={self.x}, y={self.y}, speed={self.speed}, base_speed={self.base_speed}, state={self.state}") #DEBUG
         if threats: # threats is now passed in
             threat = min(threats, key=lambda u: ((u.x - self.x)**2 + (u.y - self.y)**2)**0.5)
             flee_dx = 0
@@ -451,20 +395,14 @@ class Grazer(Unit):
                          flee_dx = panic_pos.x - self.x
                          flee_dy = panic_pos.y - self.y
             
-            # print(f"DEBUG Grazer._flee_from_threats: id={id(self)} attempting to move with dx={flee_dx}, dy={flee_dy}") #DEBUG
             moved = self.move(flee_dx, flee_dy, board)
             if not moved and (flee_dx != 0 or flee_dy != 0):
-                # print(f"DEBUG Grazer._flee_from_threats: id={id(self)} diagonal flee dx={flee_dx}, dy={flee_dy} failed. Trying cardinal.") #DEBUG
                 if flee_dx != 0 and self.move(flee_dx, 0, board):
                     moved = True
-                    # print(f"DEBUG Grazer._flee_from_threats: id={id(self)} cardinal flee dx={flee_dx}, dy=0 succeeded.") #DEBUG
                 elif flee_dy != 0 and self.move(0, flee_dy, board): # Use elif to avoid second move if first cardinal succeeded
                     moved = True
-                    # print(f"DEBUG Grazer._flee_from_threats: id={id(self)} cardinal flee dx=0, dy={flee_dy} succeeded.") #DEBUG
             
             if moved:
-                self.energy -= 2
+                self.energy -= self.energy_cost_move_flee
                 self.gain_experience("fleeing")
-            # else: # DEBUG
-                # print(f"DEBUG Grazer._flee_from_threats: id={id(self)} failed to make any flee move.") #DEBUG
                 pass

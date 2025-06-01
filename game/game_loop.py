@@ -49,11 +49,21 @@ class GameLoop:
         # Environmental cycles
         self.time_of_day = TimeOfDay.DAY
         self.season = Season.SPRING
-        self.day_night_cycle_length = config.config["environment"]["cycle_length"] if config else 20
+
+        default_cycle_length = 20
+        default_turn_delay = 0.1
+
+        if config:
+            self.day_night_cycle_length = config.get("environment", "cycle_length")
+            self.turn_delay = config.get("game", "turn_delay")
+
+        if not hasattr(self, 'day_night_cycle_length') or self.day_night_cycle_length is None:
+            self.day_night_cycle_length = default_cycle_length
+        if not hasattr(self, 'turn_delay') or self.turn_delay is None:
+            self.turn_delay = default_turn_delay
+
         self.season_length = self.day_night_cycle_length * 4  # One season lasts 4 day/night cycles
         
-        # Gameplay speed control
-        self.turn_delay = config.config["game"]["turn_delay"] if config else 0.1
     def add_unit(self, unit):
         """
         Add a unit to the game.
