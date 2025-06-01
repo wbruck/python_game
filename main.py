@@ -13,6 +13,7 @@ from game.game_loop import GameLoop
 from game.config import Config
 from game.units.unit_types import Predator, Scavenger, Grazer
 from game.plants.plant_types import BasicPlant # Import BasicPlant
+from game.visualization import Visualization
 
 def parse_args():
     """Parse command line arguments."""
@@ -82,17 +83,27 @@ def setup_game(config):
         if plant_object: # Ensure a plant was actually placed and retrieved
             game_loop.add_plant(plant_object)
 
-    return game_loop
+    visualizer = Visualization(board)
+    return game_loop, visualizer
 
 def display_game(game_loop):
     """Display the current state of the game."""
     # Simple placeholder for visualization
     # Will be replaced with proper visualization later
-    stats = game_loop.get_stats()
-    print(f"Turn: {stats['turn']}/{stats['max_turns']}")
-    print(f"Units: {stats['alive_units']} alive, {stats['dead_units']} dead")
-    print(f"Plants: {stats['plants']}")
-    print("-" * 40)
+    # stats = game_loop.get_stats()
+    # print(f"Turn: {stats['turn']}/{stats['max_turns']}")
+    # print(f"Units: {stats['alive_units']} alive, {stats['dead_units']} dead")
+    # print(f"Plants: {stats['plants']}")
+    # print("-" * 40)
+    pass # Contents commented out as per instructions
+
+def print_unit_stats(game_loop, current_turn):
+    """Prints statistics for each unit."""
+    print(f"--- Unit Stats (Turn {current_turn}) ---")
+    for unit in game_loop.units:
+        print(f"  - Type: {unit.unit_type}, Pos: ({unit.position.x}, {unit.position.y}), "
+              f"Energy: {unit.energy}, State: {unit.state}, Alive: {unit.alive}")
+    print(f"--- End Unit Stats ---")
 
 def main():
     """Main function to run the game."""
@@ -110,21 +121,33 @@ def main():
         config.set("game", "max_turns", args.turns)
     
     # Set up the game
-    game_loop = setup_game(config)
+    game_loop, visualizer = setup_game(config)
     
     # Run the game loop with display
     game_loop.is_running = True
     
+    visualization_update_frequency = config.get("game", "visualization_update_frequency")
+    unit_stats_print_frequency = config.get("game", "unit_stats_print_frequency")
+
     while game_loop.is_running and game_loop.current_turn < game_loop.max_turns:
         game_loop.process_turn()
         
         if not args.no_display:
-            display_game(game_loop)
+            if visualization_update_frequency > 0 and \
+               game_loop.current_turn % visualization_update_frequency == 0:
+                visualizer.render()
+
+            if unit_stats_print_frequency > 0 and \
+               game_loop.current_turn % unit_stats_print_frequency == 0:
+                print_unit_stats(game_loop, game_loop.current_turn)
+
+            # Only sleep if something was displayed
             time.sleep(config.get("game", "turn_delay"))
-    
+
     # Display final state
     print("\nGame finished!")
-    display_game(game_loop)
+    if not args.no_display:
+        visualizer.render() # Final render
 
 if __name__ == "__main__":
     main()
