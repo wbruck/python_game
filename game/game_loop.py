@@ -156,7 +156,7 @@ class GameLoop:
             # Update plant
             # Ensure plant.update exists and is callable
             if hasattr(plant, 'update') and callable(getattr(plant, 'update')):
-                plant.update() # Assuming plant.update takes no arguments like dt from original file
+                plant.update(1.0) # Pass dt=1.0, assuming 1 turn = 1 unit of time for plants
             else:
                 # Fallback or error if update method is missing
                 pass # Or log a warning: print(f"Warning: Plant {plant} missing update method.")
