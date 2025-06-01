@@ -75,7 +75,8 @@ def test_unit_behaviors(board, predator, scavenger, grazer):
     assert (grazer.x, grazer.y) != grazer_pos  # Should have moved away from predator
     
     # Test scavenger behavior with dead unit
-    dead_unit = Grazer(x=2, y=2)  # Place dead unit where it won't collide with predator
+    # Place dead unit further away to ensure scavenger needs to move
+    dead_unit = Grazer(x=1, y=1)
     dead_unit.alive = False
     board.place_object(dead_unit, dead_unit.x, dead_unit.y)
     scavenger_pos = (scavenger.x, scavenger.y)

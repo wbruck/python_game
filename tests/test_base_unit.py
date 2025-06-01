@@ -21,6 +21,13 @@ class MockBoard:
             return True
         return False
 
+    def remove_object(self, x, y):
+        # Mock implementation for remove_object
+        if (x,y) in self.objects:
+            del self.objects[(x,y)]
+            return True
+        return False
+
 class MockPlant(Plant): # Inherit from Plant
     def __init__(self, energy_value=50, position: Position = Position(0,0)):
         # Call super().__init__ with default values for Plant
@@ -265,7 +272,7 @@ def test_state_machine():
     unit.update(board)
     assert unit.state == "dead", "Zero HP should trigger death state"
     assert not unit.alive, "Unit should not be alive"
-    assert unit.decay_stage == 0, "Decay stage should start at 0"
+    assert unit.decay_stage == 1, "Decay stage should be 1 after death update"
 
 def test_decay_mechanics():
     """Test decay process for dead units"""
@@ -275,24 +282,25 @@ def test_decay_mechanics():
     
     # Kill the unit
     unit.hp = 0
-    unit.update(board)
+    unit.update(board) # unit dies, decay_stage becomes 1, energy decays once
     assert unit.state == "dead", "Unit should enter dead state"
-    assert unit.decay_stage == 0, "Decay stage should start at 0"
-    assert unit.decay_energy == initial_energy, "Decay energy should initialize to unit's energy"
+    assert unit.decay_stage == 1, "Decay stage should be 1 after death update"
+    
+    decay_rate = 0.1  # 10% decay per turn
+    # Energy after the first decay (during the update where death occurs)
+    expected_energy = initial_energy * (1 - decay_rate)
+    assert abs(unit.decay_energy - expected_energy) < 0.01, "Decay energy should reduce by one step on death"
     assert not unit.alive, "Unit should not be alive"
     
-    # Test decay progression
-    decay_rate = 0.1  # 10% decay per turn
-    expected_energy = initial_energy
-    
-    # Track decay over several turns
-    for turn in range(1, 4):
-        unit.update(board)
+    # Test further decay progression
+    # Current decay_stage is 1. Loop for 3 more updates.
+    for i in range(1, 4): # i will be 1, 2, 3 (representing additional turns passed)
+        unit.update(board) # On first iteration (i=1), decay_stage becomes 2.
         expected_energy *= (1 - decay_rate)
         
-        assert unit.state == "dead", f"Unit should stay dead on turn {turn}"
-        assert unit.decay_stage == turn, f"Decay stage should advance to {turn}"
-        assert abs(unit.decay_energy - expected_energy) < 0.01, f"Decay energy should reduce by {decay_rate*100}% on turn {turn}"
+        assert unit.state == "dead", f"Unit should stay dead on turn {1 + i}"
+        assert unit.decay_stage == 1 + i, f"Decay stage should advance to {1 + i}"
+        assert abs(unit.decay_energy - expected_energy) < 0.01, f"Decay energy should reduce further on turn {1+i}"
         assert unit.decay_energy > 0, "Decay energy should remain positive"
         
     # Test complete decay

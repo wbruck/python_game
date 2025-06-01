@@ -49,11 +49,21 @@ class GameLoop:
         # Environmental cycles
         self.time_of_day = TimeOfDay.DAY
         self.season = Season.SPRING
-        self.day_night_cycle_length = config.config["environment"]["cycle_length"] if config else 20
+
+        default_cycle_length = 20
+        default_turn_delay = 0.1
+
+        if config:
+            self.day_night_cycle_length = config.get("environment", "cycle_length")
+            self.turn_delay = config.get("game", "turn_delay")
+
+        if not hasattr(self, 'day_night_cycle_length') or self.day_night_cycle_length is None:
+            self.day_night_cycle_length = default_cycle_length
+        if not hasattr(self, 'turn_delay') or self.turn_delay is None:
+            self.turn_delay = default_turn_delay
+
         self.season_length = self.day_night_cycle_length * 4  # One season lasts 4 day/night cycles
         
-        # Gameplay speed control
-        self.turn_delay = config.config["game"]["turn_delay"] if config else 0.1
     def add_unit(self, unit):
         """
         Add a unit to the game.
@@ -118,17 +128,13 @@ class GameLoop:
         # 4. Shuffle units
         random.shuffle(self.units) # Added shuffle
         
-        # 5. Update units (living and dead)
+        # 5. Update units
         for unit in self.units:
             if hasattr(unit, 'update') and callable(getattr(unit, 'update')):
-                unit.update(self.board) # Call update for all units
+                unit.update(self.board) # Call update for ALL units (living or dead for decay)
 
             # Apply general energy costs (e.g. for existing) only to living units after their update
             if unit.alive:
-                # Example: energy_cost_modifier for passive energy drain
-                # This specific passive drain was here, but unit actions also have costs.
-                # Ensure this doesn't conflict with costs in unit.move, unit.attack etc.
-                # The original code had a passive drain:
                 energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
                 if hasattr(unit, 'energy'): # Check if unit has energy attribute
                     # Assuming a base passive energy cost of 1 per turn for living units

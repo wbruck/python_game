@@ -392,19 +392,3 @@ class Board:
                 placed_positions.append(pos)
                 
         return placed_positions
-    
-    def get_object(self, x: int, y: int) -> Optional[object]:
-        """
-        Get the object at the specified position.
-        
-        Args:
-            x (int): The x-coordinate.
-            y (int): The y-coordinate.
-            
-        Returns:
-            Optional[object]: The object at the specified position, or None if there is no object.
-        """
-        if not self.is_valid_position(x, y):
-            return None
-        
-        return self.grid[y][x]
