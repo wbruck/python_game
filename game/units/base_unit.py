@@ -66,6 +66,21 @@ class Unit:
             config (Config, optional): Configuration object for accessing game settings.
         """
         self.config = config  # Store the config object
+
+        # Load energy costs from config or use defaults
+        if config:
+            self.energy_cost_move = config.get("units", "energy_consumption.move")
+            self.energy_cost_attack = config.get("units", "energy_consumption.attack")
+            self.energy_cost_look = config.get("units", "energy_consumption.look")
+
+        # Provide hardcoded defaults if config is not present or a key is missing
+        if not hasattr(self, 'energy_cost_move') or self.energy_cost_move is None:
+            self.energy_cost_move = 1  # Default move cost
+        if not hasattr(self, 'energy_cost_attack') or self.energy_cost_attack is None:
+            self.energy_cost_attack = 2  # Default attack cost
+        if not hasattr(self, 'energy_cost_look') or self.energy_cost_look is None:
+            self.energy_cost_look = 0  # Default look cost
+
         # Use template if unit_type is provided
         if unit_type and unit_type in UNIT_TEMPLATES:
             template = UNIT_TEMPLATES[unit_type]
@@ -197,17 +212,18 @@ class Unit:
         if not board.is_valid_position(new_x, new_y) or board.get_object(new_x, new_y) is not None:
             return False
         
-        # Calculate energy cost based on state and movement (fixed cost of 1 per space)
-        energy_cost = 1  # Base cost of 1 per move regardless of distance
-        if self.state == "fleeing":
-            energy_cost = 2  # Double cost when fleeing
-        
-        # Check for sufficient energy - need at least 2 energy to move
-        if self.energy < 2:  # Minimum energy requirement
-            return False
-        
-        # Check if we can afford the movement cost
-        if self.energy < energy_cost:
+        # Use configured energy cost for movement
+        current_move_cost = self.energy_cost_move
+        if self.state == "fleeing": # Example: fleeing might have a different base cost or multiplier
+            # This specific logic might be better in unit_types.py or handled by a multiplier
+            # For now, we'll assume fleeing uses a modified version of the base move cost if not overridden
+            # Or, it could use a specific 'energy_cost_move_flee' if loaded by subclass
+            pass
+
+
+        # Check for sufficient energy.
+        # The cost is self.energy_cost_move (or current_move_cost if overridden by subclass state)
+        if self.energy < current_move_cost:
             return False
             
         # Check if movement is possible
@@ -217,7 +233,7 @@ class Unit:
         # Apply movement and energy cost
         self.x = new_x
         self.y = new_y
-        self.energy -= energy_cost
+        self.energy -= current_move_cost
         return True
     
     def look(self, board):
@@ -241,6 +257,12 @@ class Unit:
         elif self.state == "fleeing":
             vision_range = int(self.vision * 1.2)
         
+        # Apply energy cost for looking if it's greater than 0
+        if self.energy_cost_look > 0:
+            if self.energy < self.energy_cost_look:
+                return [] # Not enough energy to look
+            self.energy -= self.energy_cost_look
+
         visible_objects = []
         for y in range(self.y - vision_range, self.y + vision_range + 1):
             for x in range(self.x - vision_range, self.x + vision_range + 1):
@@ -339,16 +361,10 @@ class Unit:
         elif self.state == "fleeing":
             damage *= 0.5
             
-        energy_cost = 2
-        if self.config:
-            configured_cost = self.config.get("units", "energy_consumption.attack")
-            if configured_cost is not None:
-                energy_cost = configured_cost
-
-        if self.energy < energy_cost:
-            return 0
+        if self.energy < self.energy_cost_attack:
+            return 0 # Not enough energy to attack
             
-        self.energy -= energy_cost
+        self.energy -= self.energy_cost_attack
         target.hp -= damage
         
         if target.hp <= 0:
@@ -422,3 +438,10 @@ class Unit:
             self.vision = int(self.base_vision * 1.5)
         elif self.state == "resting":
             self.energy = min(self.max_energy, self.energy + 2)
+
+    def apply_environmental_effects(self):
+        """
+        Apply environmental effects to the unit.
+        Placeholder for future implementation.
+        """
+        pass

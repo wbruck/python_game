@@ -43,17 +43,18 @@ class Plant:
             is_alive=True
         )
     
-    def update(self, dt: float) -> None:
+    def update(self) -> None:
         """
         Update the plant's state for this time step.
         
         Args:
-            dt: Time delta since last update
+            None
         """
         if not self.state.is_alive and self.state.growth_stage < 1.0:
             # Regrow if consumed
+            # Assuming regrowth happens at a fixed rate per update call
             self.state.growth_stage = min(1.0, 
-                self.state.growth_stage + (self.growth_rate * dt))
+                self.state.growth_stage + self.growth_rate)
             
             # Once fully regrown, restore energy and mark as alive
             if self.state.growth_stage >= 1.0:
@@ -90,3 +91,10 @@ class Plant:
         if not self.state.is_alive:
             return "."  # Consumed plant
         return "*"  # Basic plant symbol, subclasses should override
+
+    def apply_environmental_effects(self):
+        """
+        Apply environmental effects to the plant.
+        Placeholder for future implementation.
+        """
+        pass

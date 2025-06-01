@@ -31,7 +31,10 @@ class Config:
             "energy_consumption": {
                 "move": {"type": int, "min": 0, "max": 10},
                 "attack": {"type": int, "min": 0, "max": 10},
-                "look": {"type": int, "min": 0, "max": 10}
+                "look": {"type": int, "min": 0, "max": 10},
+                "move_hunt": {"type": int, "min": 0, "max": 10},
+                "move_flee": {"type": int, "min": 0, "max": 10},
+                "move_graze": {"type": int, "min": 0, "max": 10}
             },
             "decay_rate": {"type": float, "min": 0.0, "max": 1.0}
         },
@@ -72,7 +75,10 @@ class Config:
             "energy_consumption": {
                 "move": 1,
                 "attack": 2,
-                "look": 0
+                "look": 0,
+                "move_hunt": 2,
+                "move_flee": 3,
+                "move_graze": 1
             },
             "decay_rate": 0.1  # how quickly dead units decay
         },
@@ -331,7 +337,6 @@ class Config:
         # Set the value and notify
         config_ref[parts[-1]] = value
         self._notify_change(section, key, value)
-        return True
         return True
     
     def reload(self) -> bool:
