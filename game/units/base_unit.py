@@ -223,7 +223,10 @@ class Unit:
 
         # Check for sufficient energy.
         # The cost is self.energy_cost_move (or current_move_cost if overridden by subclass state)
-        if self.energy < current_move_cost:
+        # Unit should not move if energy is less than or equal to the cost,
+        # meaning the move would leave it with 0 or negative energy.
+        # The test `test_movement_mechanics` expects this behavior.
+        if self.energy <= current_move_cost: # Modified from < to <=
             return False
             
         # Check if movement is possible
