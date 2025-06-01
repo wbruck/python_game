@@ -8,7 +8,8 @@ import os
 def mock_config():
     """Create a mock configuration for testing."""
     config = Mock()
-    config.config = {
+    # Store the config dictionary in a way that's accessible for the mock
+    _config_data = {
         "environment": {
             "cycle_length": 10,
             "day_night_cycle": True
@@ -17,6 +18,13 @@ def mock_config():
             "turn_delay": 0.0
         }
     }
+    # Mock the .get() method
+    def mock_get(section, key):
+        return _config_data.get(section, {}).get(key)
+
+    config.get = Mock(side_effect=mock_get)
+    # Optionally, still allow access to the raw config if needed elsewhere
+    config.config = _config_data
     return config
 
 @pytest.fixture

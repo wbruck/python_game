@@ -43,18 +43,18 @@ class Plant:
             is_alive=True
         )
     
-    def update(self) -> None:
+    def update(self, dt: float) -> None:
         """
         Update the plant's state for this time step.
         
         Args:
-            None
+            dt: Time delta since the last update.
         """
         if not self.state.is_alive and self.state.growth_stage < 1.0:
             # Regrow if consumed
-            # Assuming regrowth happens at a fixed rate per update call
-            self.state.growth_stage = min(1.0, 
-                self.state.growth_stage + self.growth_rate)
+            if self.regrowth_time > 0:  # Prevent division by zero
+                growth_increment = dt / self.regrowth_time
+                self.state.growth_stage = min(1.0, self.state.growth_stage + growth_increment)
             
             # Once fully regrown, restore energy and mark as alive
             if self.state.growth_stage >= 1.0:
