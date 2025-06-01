@@ -20,7 +20,9 @@ class Config:
         },
         "game": {
             "max_turns": {"type": int, "min": 1, "max": 10000},
-            "turn_delay": {"type": float, "min": 0.0, "max": 5.0}
+            "turn_delay": {"type": float, "min": 0.0, "max": 5.0},
+            "visualization_update_frequency": {"type": int, "min": 0, "max": 100},
+            "unit_stats_print_frequency": {"type": int, "min": 0, "max": 100}
         },
         "units": {
             "initial_count": {
@@ -64,7 +66,9 @@ class Config:
         },
         "game": {
             "max_turns": 1000,
-            "turn_delay": 0.1  # seconds between turns
+            "turn_delay": 0.1,  # seconds between turns
+            "visualization_update_frequency": 1,
+            "unit_stats_print_frequency": 5
         },
         "units": {
             "initial_count": {
