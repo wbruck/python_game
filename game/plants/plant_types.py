@@ -61,3 +61,10 @@ class FastGrowingPlant(Plant):
     @property
     def symbol(self) -> str:
         return "+" if self.state.is_alive else "."
+
+# Dictionary of available plant types for easy reference and instantiation
+PLANT_TYPES = {
+    "basic": BasicPlant,
+    "energy_rich": EnergyRichPlant,
+    "fast_growing": FastGrowingPlant
+}
