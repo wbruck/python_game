@@ -3,22 +3,96 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Game Viewer</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Ecosystem Simulation Game</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        #game-board {
+            display: grid;
+            gap: 1px;
+            background-color: #ddd;
+            padding: 10px;
+            margin: 20px auto;
+            max-width: fit-content;
+        }
+        .cell {
+            width: 30px;
+            height: 30px;
+            background-color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        .predator { color: #ff0000; }
+        .grazer { color: #00aa00; }
+        .plant { color: #008800; }
+    </style>
 </head>
 <body>
-    <h1>Game Board</h1>
     <div class="container">
-        <div id="game-board">
-            <!-- Board will be rendered here by JavaScript -->
-        </div>
-        <div id="stats-sidebar" class="hidden">
-            <h2>Entity Stats</h2>
-            <div id="stats-content">
-                <!-- Stats will be populated here by JavaScript -->
-            </div>
-        </div>
+        <h1>Ecosystem Simulation Game</h1>
+        <div id="game-board"></div>
     </div>
-    <script src="script.js"></script>
+
+    <script>
+        async function fetchBoardState() {
+            try {
+                const response = await fetch('/board');
+                const data = await response.json();
+                updateBoard(data);
+            } catch (error) {
+                console.error('Error fetching board state:', error);
+            }
+        }
+
+        function updateBoard(data) {
+            const board = document.getElementById('game-board');
+            board.style.gridTemplateColumns = `repeat(${data.width}, 30px)`;
+            board.innerHTML = '';
+
+            // Create empty cells
+            for (let y = 0; y < data.height; y++) {
+                for (let x = 0; x < data.width; x++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    board.appendChild(cell);
+                }
+            }
+
+            // Place entities
+            data.entities.forEach(entity => {
+                const index = entity.y * data.width + entity.x;
+                const cell = board.children[index];
+                if (entity.type === 'unit') {
+                    cell.textContent = entity.unit_type === 'predator' ? 'P' : 'G';
+                    cell.classList.add(entity.unit_type);
+                } else if (entity.type === 'plant') {
+                    cell.textContent = entity.symbol || '🌱';
+                    cell.classList.add('plant');
+                }
+            });
+        }
+
+        // Initial fetch and periodic updates
+        fetchBoardState();
+        setInterval(fetchBoardState, 1000);
+    </script>
 </body>
 </html>
