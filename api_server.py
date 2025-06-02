@@ -1,33 +1,206 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any, Union, Optional, Set
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
+import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 from game.board import Board
 from game.game_loop import GameLoop
 from game.config import Config
 from game.units.unit_types import UNIT_TYPES
 from game.plants.plant_types import PLANT_TYPES
-from game.units.base_unit import BaseUnit
-from game.plants.base_plant import BasePlant
+from game.units.base_unit import Unit
+from game.plants.base_plant import Plant
+from game.board import Position
+
 
 # Basic FastAPI app setup
 app = FastAPI()
 
-# Dictionary to store GameLoop objects
-game_instances: dict[str, GameLoop] = {}
-entity_map: Dict[str, Dict[str, Any]] = {} # Global entity map for now
+
+# Mount the static directory
+try:
+    static_dir = os.path.abspath("static")
+    logger.info(f"Mounting static directory at: {static_dir}")
+    if not os.path.exists(static_dir):
+        logger.error(f"Static directory not found at: {static_dir}")
+        raise RuntimeError(f"Static directory not found at: {static_dir}")
+    app.mount("/static", StaticFiles(directory=static_dir), name="static")
+except Exception as e:
+    logger.error(f"Failed to mount static directory: {str(e)}")
+    raise
+
 
 # Flag to indicate if game components are available
 GAME_COMPONENTS_AVAILABLE = False
 
 try:
     # Attempt to import all necessary game components
-    if Board and GameLoop and Config and UNIT_TYPES and PLANT_TYPES and BaseUnit and BasePlant:
+
+    logger.info("Checking game components...")
+    logger.info(f"Board: {Board}")
+    logger.info(f"GameLoop: {GameLoop}")
+    logger.info(f"Config: {Config}")
+    logger.info(f"UNIT_TYPES: {UNIT_TYPES}")
+    logger.info(f"PLANT_TYPES: {PLANT_TYPES}")
+    logger.info(f"Unit: {Unit}")
+    logger.info(f"Plant: {Plant}")
+    
+    if (Board is not None and 
+        GameLoop is not None and 
+        Config is not None and 
+        UNIT_TYPES is not None and 
+        PLANT_TYPES is not None and 
+        Unit is not None and 
+        Plant is not None):
         GAME_COMPONENTS_AVAILABLE = True
-except ImportError:
-    # Handle cases where game components might not be fully available
-    # For now, we'll just print a message, but this could be more sophisticated
+        logger.info("All game components successfully loaded")
+        logger.info(f"Available unit types: {list(UNIT_TYPES.keys())}")
+        logger.info(f"Available plant types: {list(PLANT_TYPES.keys())}")
+    else:
+        logger.error("Some game components are None")
+except Exception as e:
+    logger.error(f"Failed to load game components: {str(e)}")
     print("Warning: Some game components could not be imported. API might not function correctly.")
+
+@app.get("/game/entity-types")
+async def get_entity_types():
+    """
+    Returns the available unit and plant types that can be used in the game.
+    """
+    if not GAME_COMPONENTS_AVAILABLE:
+        logger.error("Game components are not available")
+        raise HTTPException(status_code=503, detail="Game components are not available.")
+    
+    try:
+        unit_types = list(UNIT_TYPES.keys())
+        plant_types = list(PLANT_TYPES.keys())
+        logger.info(f"Returning entity types - Units: {unit_types}, Plants: {plant_types}")
+        return {
+            "units": unit_types,
+            "plants": plant_types
+        }
+    except Exception as e:
+        logger.error(f"Error getting entity types: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error getting entity types: {str(e)}")
+
+# Add a root endpoint that serves the index.html
+@app.get("/")
+async def root():
+    try:
+        index_path = os.path.join("static", "index.html")
+        logger.info(f"Serving index.html from: {index_path}")
+        if not os.path.exists(index_path):
+            logger.error(f"index.html not found at: {index_path}")
+            raise HTTPException(status_code=404, detail="index.html not found")
+        return FileResponse(index_path)
+    except Exception as e:
+        logger.error(f"Error serving index.html: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Configuration models
+class EntityConfig(BaseModel):
+    type: str  # "unit" or "plant"
+    name: str  # e.g., "predator", "basic_plant"
+    x: int
+    y: int
+    hp: Optional[int] = None  # Optional for units
+    config: Optional[Dict[str, Any]] = None  # Additional configuration
+
+class BoardConfig(BaseModel):
+    width: int
+    height: int
+    entities: List[EntityConfig] = []
+
+# Dictionary to store GameLoop objects
+game_instances: dict[str, GameLoop] = {}
+entity_map: Dict[str, Dict[str, Any]] = {} # Global entity map for now
+
+def create_game_instance(game_id: str, config: BoardConfig) -> GameLoop:
+    """
+    Creates a new game instance with the specified configuration.
+    """
+    if not GAME_COMPONENTS_AVAILABLE:
+        raise HTTPException(status_code=503, detail="Game components are not available.")
+
+    try:
+        logger.info(f"Creating game instance with ID: {game_id}")
+        logger.info(f"Board dimensions: {config.width}x{config.height}")
+        logger.info(f"Number of entities to create: {len(config.entities)}")
+        
+        # Create a new Config instance with default values
+        game_config = Config()
+        
+        # Set board dimensions
+        game_config.set("board", "width", config.width)
+        game_config.set("board", "height", config.height)
+
+        # Create board and game loop
+        board = Board(config.width, config.height)
+        max_turns = game_config.get("game", "max_turns")
+        if max_turns is None:
+            max_turns = 1000  # Default value if not set in config
+        game_loop = GameLoop(board, max_turns=max_turns, config=game_config)
+
+        # Add initial entities
+        for entity_config in config.entities:
+            logger.info(f"Creating entity: type={entity_config.type}, name={entity_config.name}, position=({entity_config.x}, {entity_config.y})")
+            if entity_config.type == "unit" and entity_config.name in UNIT_TYPES:
+                unit_class = UNIT_TYPES[entity_config.name]
+                unit = unit_class(entity_config.x, entity_config.y, hp=entity_config.hp, config=game_config)
+                board.place_object(unit, entity_config.x, entity_config.y)
+                logger.info(f"Created unit: {unit}")
+            elif entity_config.type == "plant" and entity_config.name in PLANT_TYPES:
+                plant_class = PLANT_TYPES[entity_config.name]
+                position = Position(entity_config.x, entity_config.y)
+                plant = plant_class(position)
+                board.place_object(plant, entity_config.x, entity_config.y)
+                logger.info(f"Created plant: {plant}")
+            else:
+                logger.warning(f"Unknown entity type or name: type={entity_config.type}, name={entity_config.name}")
+
+        # Store the game instance
+        game_instances[game_id] = game_loop
+        logger.info(f"Game instance created successfully with {len(config.entities)} entities")
+        return game_loop
+
+    except Exception as e:
+        logger.error(f"Error creating game instance: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/game/{game_id}/configure")
+async def configure_game(game_id: str, config: BoardConfig):
+    """
+    Configure a game instance with the specified board setup.
+    If the game already exists, it will be reconfigured.
+    """
+    try:
+        # If game exists, delete it first
+        if game_id in game_instances:
+            del game_instances[game_id]
+            
+        game_loop = create_game_instance(game_id, config)
+        return {"message": f"Game '{game_id}' configured successfully."}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.delete("/game/{game_id}")
+async def delete_game(game_id: str):
+    """
+    Delete a game instance.
+    """
+    if game_id not in game_instances:
+        raise HTTPException(status_code=404, detail=f"Game with ID '{game_id}' not found.")
+    
+    del game_instances[game_id]
+    return {"message": f"Game '{game_id}' deleted successfully."}
 
 
 def create_default_game():
@@ -72,7 +245,12 @@ def create_default_game():
     # GameLoop needs the config object, not individual values like sunlight yet.
     # The GameLoop constructor might need adaptation if it expects specific config values directly.
     # For now, passing the whole config object.
-    game_loop = GameLoop(board, config)
+
+    max_turns = config.get("game", "max_turns")
+    if max_turns is None:
+        max_turns = 1000  # Default value if not set in config
+    game_loop = GameLoop(board, max_turns=max_turns, config=config)
+
 
     # Store the created GameLoop instance
     game_instances["default_game"] = game_loop
@@ -164,43 +342,49 @@ def _get_board_state_and_populate_entity_map(game_loop: GameLoop, game_id: str) 
     current_game_entity_map: Dict[str, Any] = {}
 
     for y, row in enumerate(game_loop.board.grid):
-        for x, cell_content_list in enumerate(row):
-            for obj in cell_content_list:
-                entity_api_id = get_entity_api_id(obj, game_id)
-                entity_type = ""
-                name = ""
-                details = {}
 
-                if isinstance(obj, BaseUnit):
-                    entity_type = "unit"
-                    name = getattr(obj, 'unit_type', type(obj).__name__)
-                    details = {
-                        "health": getattr(obj, 'health', None),
-                        "energy": getattr(obj, 'energy', None),
-                        "state": getattr(obj, 'state', None),
-                        "age": getattr(obj, 'age', None),
-                        # Add any other relevant unit details
-                    }
-                elif isinstance(obj, BasePlant):
-                    entity_type = "plant"
-                    name = getattr(obj, 'plant_type', type(obj).__name__) # e.g., "Sunflower" from a subclass or "Plant"
+        for x, cell_content in enumerate(row):
+            # Skip if cell is None or empty
+            if cell_content is None:
+                continue
+                
+            obj = cell_content
+            entity_api_id = get_entity_api_id(obj, game_id)
+            entity_type = ""
+            name = ""
+            details = {}
 
-                    # Access state attributes safely
-                    plant_state = getattr(obj, 'state', None)
-                    energy = getattr(plant_state, 'energy_content', None) if plant_state else None
-                    growth_stage = getattr(plant_state, 'growth_stage', None) if plant_state else None
+            if isinstance(obj, Unit):
+                entity_type = "unit"
+                name = getattr(obj, 'unit_type', type(obj).__name__)
+                details = {
+                    "health": getattr(obj, 'hp', None),  # Changed from health to hp to match Unit class
+                    "energy": getattr(obj, 'energy', None),
+                    "state": getattr(obj, 'state', None),
+                    "age": getattr(obj, 'age', None),
+                    # Add any other relevant unit details
+                }
+            elif isinstance(obj, Plant):
+                entity_type = "plant"
+                name = getattr(obj, 'plant_type', type(obj).__name__) # e.g., "Sunflower" from a subclass or "Plant"
 
-                    details = {
-                        "health": getattr(obj, 'health', None), # Remains None if not present
-                        "energy": energy,
-                        "age": getattr(obj, 'age', None), # Remains None if not present
-                        "growth_stage": growth_stage,
-                        "symbol": getattr(obj, 'symbol', '?'), # Use getattr for symbol for safety
-                    }
+                # Access state attributes safely
+                plant_state = getattr(obj, 'state', None)
+                energy = getattr(plant_state, 'energy_content', None) if plant_state else None
+                growth_stage = getattr(plant_state, 'growth_stage', None) if plant_state else None
 
-                if entity_type:
-                    entities_on_board.append(Entity(id=entity_api_id, type=entity_type, x=x, y=y, name=name, details=details))
-                    current_game_entity_map[entity_api_id] = obj # Store actual object
+                details = {
+                    "health": getattr(obj, 'hp', None), # Remains None if not present
+                    "energy": energy,
+                    "age": getattr(obj, 'age', None), # Remains None if not present
+                    "growth_stage": growth_stage,
+                    "symbol": getattr(obj, 'symbol', '?'), # Use getattr for symbol for safety
+                }
+
+            if entity_type:
+                entities_on_board.append(Entity(id=entity_api_id, type=entity_type, x=x, y=y, name=name, details=details))
+                current_game_entity_map[entity_api_id] = obj # Store actual object
+
 
     return entities_on_board, current_game_entity_map
 
@@ -291,7 +475,9 @@ async def get_entity_details(game_id: str, entity_id: str):
         raise HTTPException(status_code=404, detail=f"Game with ID '{game_id}' not found.")
 
 
-    if isinstance(entity_obj, BaseUnit):
+
+    if isinstance(entity_obj, Unit):
+
         # Populate UnitStats
         return UnitStats(
             id=entity_id,
@@ -311,15 +497,19 @@ async def get_entity_details(game_id: str, entity_id: str):
             experience=getattr(entity_obj, 'experience', None),
             traits=getattr(entity_obj, 'traits', set())
         )
-    elif isinstance(entity_obj, BasePlant):
+
+    elif isinstance(entity_obj, Plant):
+
         # Populate PlantStats
         plant_state = getattr(entity_obj, 'state', None)
         return PlantStats(
             id=entity_id,
             plant_type=getattr(entity_obj, 'plant_type', type(entity_obj).__name__),
             symbol=getattr(entity_obj, 'symbol', None),
-            x=entity_obj.position.x, # BasePlant stores position as an object
-            y=entity_obj.position.y, # BasePlant stores position as an object
+
+            x=entity_obj.position.x, # Plant stores position as an object
+            y=entity_obj.position.y, # Plant stores position as an object
+
             energy_content=getattr(plant_state, 'energy_content', None) if plant_state else None,
             base_energy=getattr(entity_obj, 'base_energy', None),
             growth_stage=getattr(plant_state, 'growth_stage', None) if plant_state else None,
@@ -329,3 +519,30 @@ async def get_entity_details(game_id: str, entity_id: str):
     else:
         # Should not happen if entity_map is populated correctly
         raise HTTPException(status_code=500, detail=f"Unknown entity type for ID '{entity_id}'.")
+
+
+@app.post("/game/new")
+async def create_new_game():
+    """
+    Creates a new game instance and returns its ID.
+    """
+    game_id = f"game_{len(game_instances)}"
+    # Create an empty game instance with default configuration
+    config = Config()
+    board_width = config.get("board", "width")
+    board_height = config.get("board", "height")
+    
+    # Use default values if config doesn't have them
+    if board_width is None:
+        board_width = 10
+    if board_height is None:
+        board_height = 10
+        
+    board = Board(board_width, board_height)
+    max_turns = config.get("game", "max_turns")
+    if max_turns is None:
+        max_turns = 1000  # Default value if not set in config
+    game_loop = GameLoop(board, max_turns=max_turns, config=config)
+    game_instances[game_id] = game_loop
+    return {"game_id": game_id}
+

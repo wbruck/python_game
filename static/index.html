@@ -99,11 +99,80 @@
             font-size: 1.2em;
             font-weight: bold;
         }
+        
+        #config-panel {
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+        
+        .config-form {
+            display: grid;
+            gap: 15px;
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        
+        .config-form label {
+            font-weight: bold;
+        }
+        
+        .config-form input {
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            width: 60px;
+        }
+        
+        .entity-count {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .entity-count label {
+            flex-grow: 1;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+            justify-content: center;
+
+        }
     </style>
 </head>
 <body>
     <h1>Ecosystem Simulation Game - API Control</h1>
-    <div id="game-controls">
+    
+    <div id="config-panel">
+        <h2>Game Configuration</h2>
+        <form id="config-form" class="config-form">
+            <div>
+                <label for="board-width">Board Width:</label>
+                <input type="number" id="board-width" min="5" max="50" value="10" required>
+            </div>
+            <div>
+                <label for="board-height">Board Height:</label>
+                <input type="number" id="board-height" min="5" max="50" value="10" required>
+            </div>
+            <div>
+                <h3>Number of Entities</h3>
+                <div id="entity-counts">
+                    <!-- Entity count inputs will be added here -->
+                </div>
+                <div class="button-group">
+                    <button type="submit" id="configure-btn">Start Game</button>
+                </div>
+            </div>
+        </form>
+    </div>
+
+    <div id="game-controls" style="display: none;">
+
         <button id="next-turn-btn">Next Turn</button>
     </div>
     <div id="turn-info">Turn: 0</div>

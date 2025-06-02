@@ -370,6 +370,7 @@ class Grazer(Unit):
                         moved = True
                     elif move_dy != 0 and self.move(0, move_dy, board):
                         moved = True
+
                 if moved:
                     self.energy -= self.energy_cost_move_graze # Use graze cost when actively finding food
         # No random move here, default to wandering/grazing if no specific food found by this targeted method
@@ -406,3 +407,10 @@ class Grazer(Unit):
                 self.energy -= self.energy_cost_move_flee
                 self.gain_experience("fleeing")
                 pass
+
+# Dictionary mapping unit type names to their classes
+UNIT_TYPES = {
+    "predator": Predator,
+    "scavenger": Scavenger,
+    "grazer": Grazer
+}
