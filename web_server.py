@@ -1,12 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional, Dict, Union
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-import os
-
-# Create static directory if it doesn't exist
-os.makedirs("static", exist_ok=True)
 
 # Attempt to import game components
 try:
@@ -45,9 +39,6 @@ except ImportError as e:
     if 'BasicPlant' not in globals(): BasicPlant = lambda position, base_energy, growth_rate, regrowth_time: Plant(position=position, symbol="B", base_energy=base_energy, growth_rate=growth_rate, regrowth_time=regrowth_time)
 
 app = FastAPI()
-
-# Mount static files directory
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Pydantic models for API responses
 class Entity(BaseModel):
@@ -124,7 +115,7 @@ except Exception as e:
 
 @app.get("/")
 async def read_root():
-    return FileResponse("static/index.html")
+    return {"message": "Game server is running"}
 
 @app.get("/board", response_model=BoardResponse)
 async def get_board_state():

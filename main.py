@@ -23,7 +23,6 @@ def parse_args():
     parser.add_argument("--turns", type=int, help="Override number of turns")
     parser.add_argument("--seed", type=int, help="Random seed for reproducibility")
     parser.add_argument("--serve-web", action="store_true", help="Start the FastAPI web server for the game interface")
-    parser.add_argument("--port", type=int, default=8099, help="Port number for the web server (default: 8099)")
     return parser.parse_args()
 
 def setup_game(config):
@@ -115,9 +114,9 @@ def main():
         try:
             import uvicorn
             from web_server import app  # Assuming web_server.py and app object exist
-            print(f"Starting web server on http://0.0.0.0:{args.port}")
-            print(f"Access the game interface at http://0.0.0.0:{args.port}/static/index.html")
-            uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="info")
+            print("Starting web server on http://0.0.0.0:8000")
+            print("Access the game interface at http://0.0.0.0:8000/static/index.html")
+            uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
         except ImportError as e:
             print(f"Error importing modules for web server: {e}")
             print("Please ensure 'uvicorn' and 'fastapi' are installed and web_server.py is correctly set up.")
