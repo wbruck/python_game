@@ -21,6 +21,9 @@
             "attack": 3,
             "look": 0
         },
+        "resting_exit_energy_ratio": 0.6,
+        "max_resting_turns": 20,
+        "min_energy_force_exit_rest_ratio": 0.4,
         "decay_rate": 0.15
     },
     "plants": {

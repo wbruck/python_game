@@ -38,6 +38,9 @@ class Config:
                 "move_flee": {"type": int, "min": 0, "max": 10},
                 "move_graze": {"type": int, "min": 0, "max": 10}
             },
+            "resting_exit_energy_ratio": {"type": float, "min": 0.1, "max": 1.0},
+            "max_resting_turns": {"type": int, "min": 1, "max": 100},
+            "min_energy_force_exit_rest_ratio": {"type": float, "min": 0.0, "max": 1.0},
             "decay_rate": {"type": float, "min": 0.0, "max": 1.0}
         },
         "plants": {
@@ -84,6 +87,9 @@ class Config:
                 "move_flee": 3,
                 "move_graze": 1
             },
+            "resting_exit_energy_ratio": 0.6,
+            "max_resting_turns": 20,
+            "min_energy_force_exit_rest_ratio": 0.4,
             "decay_rate": 0.1  # how quickly dead units decay
         },
         "plants": {

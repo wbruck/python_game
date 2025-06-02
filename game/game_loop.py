@@ -135,10 +135,12 @@ class GameLoop:
 
             # Apply general energy costs (e.g. for existing) only to living units after their update
             if unit.alive:
-                energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
-                if hasattr(unit, 'energy'): # Check if unit has energy attribute
-                    # Assuming a base passive energy cost of 1 per turn for living units
-                    unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
+                # Check if the unit is not in the "resting" state before applying passive drain
+                if hasattr(unit, 'state') and unit.state != "resting":
+                    energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
+                    if hasattr(unit, 'energy'): # Check if unit has energy attribute
+                        # Assuming a base passive energy cost of 1 per turn for living units
+                        unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
         
         # 6. Update plants
         growth_modifiers = {
