@@ -8,14 +8,14 @@ This script initializes and runs the ecosystem simulation game.
 import random
 import time
 import argparse
-import threading # Added threading
+# Removed: import threading
 from game.board import Board, Position
 from game.game_loop import GameLoop
 from game.config import Config
 from game.units.unit_types import Predator, Scavenger, Grazer
 from game.plants.plant_types import BasicPlant # Import BasicPlant
 from game.visualization import Visualization
-from web_server import set_game_board # Added set_game_board
+# Removed: from web_server import set_game_board
 
 def parse_args():
     """Parse command line arguments."""
@@ -24,8 +24,8 @@ def parse_args():
     parser.add_argument("--no-display", action="store_true", help="Disable visual display")
     parser.add_argument("--turns", type=int, help="Override number of turns")
     parser.add_argument("--seed", type=int, help="Random seed for reproducibility")
-    parser.add_argument("--serve-web", action="store_true", help="Start the FastAPI web server for the game interface")
-    parser.add_argument("--port", type=int, default=8099, help="Port number for the web server (default: 8099)")
+    # Removed: parser.add_argument("--serve-web", ...)
+    # Removed: parser.add_argument("--port", ...)
     return parser.parse_args()
 
 def setup_game(config):
@@ -113,41 +113,10 @@ def main():
     """Main function to run the game."""
     args = parse_args()
 
-    # Load configuration first, as it's needed by both paths
+    # Load configuration first
     config = Config(args.config)
 
-    if args.serve_web:
-        try:
-            import uvicorn
-            from web_server import app  # Assuming web_server.py and app object exist
-
-            # Set up the game to get the board
-            game_loop, _ = setup_game(config) # Visualizer not used in web mode
-            set_game_board(game_loop.board) # Pass the board to the web server
-
-            # Define the game loop runner function
-            def run_game_loop(game_loop_instance):
-                game_loop_instance.is_running = True # Ensure it's set to run
-                turn_delay = config.get("game", "turn_delay", 0.1) # Get turn_delay, default if not found
-                while game_loop_instance.is_running and \
-                      game_loop_instance.current_turn < game_loop_instance.max_turns:
-                    game_loop_instance.process_turn()
-                    # print(f"Web server background game turn: {game_loop_instance.current_turn}") # Optional: for debugging
-                    time.sleep(turn_delay) # Use configured turn delay
-
-            # Create and start the game thread
-            game_thread = threading.Thread(target=run_game_loop, args=(game_loop,), daemon=True)
-            game_thread.start()
-
-            print(f"Starting web server on http://0.0.0.0:{args.port}")
-            print(f"Access the game interface at http://0.0.0.0:{args.port}/static/index.html")
-            uvicorn.run(app, host="0.0.0.0", port=args.port, log_level="info")
-        except ImportError as e:
-            print(f"Error importing modules for web server: {e}")
-            print("Please ensure 'uvicorn' and 'fastapi' are installed and web_server.py is correctly set up.")
-        except Exception as e:
-            print(f"Failed to start web server or run game thread: {e}")
-        return  # Exit after attempting to start/starting the server
+    # Removed the entire 'if args.serve_web:' block
     
     # Set random seed if provided
     if args.seed is not None:

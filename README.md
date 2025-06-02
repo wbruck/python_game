@@ -51,6 +51,41 @@ python main.py
 - `--turns`: Override number of turns
 - `--seed`: Random seed for reproducibility
 
+### API Usage
+
+The simulation can also be controlled and viewed via a FastAPI web server and a simple web UI.
+
+**Starting the API Server:**
+
+To start the API server, run the following command from the project root (where `api_server.py` is located), ensuring your `pipenv shell` is active:
+
+```bash
+uvicorn api_server:app --reload --port 8000
+```
+*   `--reload`: Enables auto-reloading when code changes (for development).
+*   `--port 8000`: Specifies the port number (default is 8000). You can change this if needed.
+
+**Accessing the Web UI:**
+
+Once the server is running, you can access the basic web interface by navigating to:
+`http://localhost:8000/static/index.html` in your web browser.
+
+**API Endpoints:**
+
+The server provides the following main API endpoints. A default game instance with ID `default_game` is created when the server starts.
+
+*   **`GET /game/{game_id}/board`**
+    *   Description: Retrieves the current state of the game board for the specified `game_id`. This includes the board dimensions, current turn number, and a list of all entities (units and plants) with their positions and basic details.
+    *   Example: `GET /game/default_game/board`
+
+*   **`POST /game/{game_id}/update`**
+    *   Description: Advances the game simulation by one turn for the specified `game_id`. The request body is empty. The response contains the updated board state, similar to the `/board` endpoint.
+    *   Example: `POST /game/default_game/update`
+
+*   **`GET /game/{game_id}/entity/{entity_id}`**
+    *   Description: Retrieves detailed statistics for a specific entity (unit or plant) identified by `entity_id` within the given `game_id`. The `entity_id` can be obtained from the responses of the `/board` or `/update` endpoints.
+    *   Example: `GET /game/default_game/entity/default_game_Predator_162530120` (Note: actual entity IDs will vary)
+
 ### Running Tests
 
 Run the tests using pytest:
