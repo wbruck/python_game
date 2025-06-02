@@ -108,6 +108,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const nextTurnButton = document.getElementById('next-turn-btn');
     const turnInfoDiv = document.getElementById('turn-info');
 
+
     // Function to get random empty position
     function getRandomEmptyPosition(width, height, occupiedPositions) {
         let x, y;
@@ -246,6 +247,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         try {
             const response = await fetch(`${API_BASE_URL}/game/${gameId}/board`);
+
             if (!response.ok) {
                 console.error('Failed to fetch board data:', response.status, await response.text());
                 gameBoardDiv.innerHTML = '<p>Error loading board data. Check console.</p>';
@@ -270,6 +272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         gameBoardDiv.style.gridTemplateColumns = `repeat(${boardWidth}, 30px)`;
         gameBoardDiv.style.gridTemplateRows = `repeat(${boardHeight}, 30px)`;
+
 
         const entitiesMap = new Map();
         // Ensure boardData.entities is an array
@@ -296,7 +299,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Add class for general type (unit/plant) and specific name (e.g., Predator, BasicPlant)
                     cellDiv.classList.add(entity.type.toLowerCase()); // "unit" or "plant"
                     if (entity.name) {
+i
                         // Normalize name for CSS class: lowercase, remove spaces
+
                         cellDiv.classList.add(entity.name.toLowerCase().replace(/\s+/g, ''));
                     }
 
@@ -309,12 +314,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Function to fetch and display details of a specific entity
     async function fetchEntityDetails(entityId) {
+
         if (!entityId || !gameId) {
+
             detailsContentDiv.innerHTML = 'No entity selected.';
             return;
         }
         try {
+
             const response = await fetch(`${API_BASE_URL}/game/${gameId}/entity/${entityId}`);
+
             if (!response.ok) {
                 console.error('Failed to fetch entity data:', response.status, await response.text());
                 detailsContentDiv.innerHTML = '<p>Error loading entity details. Check console.</p>';
@@ -349,6 +358,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ul.appendChild(li);
         }
         detailsContentDiv.appendChild(ul);
+
     }
 
     // Function to update the game state by one turn
@@ -389,6 +399,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (nextTurnButton) {
         nextTurnButton.addEventListener('click', updateGame);
     }
+
 });
 
 // Update fetchAndRenderBoard to use gameId

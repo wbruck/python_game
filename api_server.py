@@ -10,6 +10,7 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 from game.board import Board
 from game.game_loop import GameLoop
 from game.config import Config
@@ -19,8 +20,10 @@ from game.units.base_unit import Unit
 from game.plants.base_plant import Plant
 from game.board import Position
 
+
 # Basic FastAPI app setup
 app = FastAPI()
+
 
 # Mount the static directory
 try:
@@ -34,11 +37,13 @@ except Exception as e:
     logger.error(f"Failed to mount static directory: {str(e)}")
     raise
 
+
 # Flag to indicate if game components are available
 GAME_COMPONENTS_AVAILABLE = False
 
 try:
     # Attempt to import all necessary game components
+
     logger.info("Checking game components...")
     logger.info(f"Board: {Board}")
     logger.info(f"GameLoop: {GameLoop}")
@@ -197,6 +202,7 @@ async def delete_game(game_id: str):
     del game_instances[game_id]
     return {"message": f"Game '{game_id}' deleted successfully."}
 
+
 def create_default_game():
     """
     Initializes a Board and a GameLoop with a default configuration
@@ -239,10 +245,12 @@ def create_default_game():
     # GameLoop needs the config object, not individual values like sunlight yet.
     # The GameLoop constructor might need adaptation if it expects specific config values directly.
     # For now, passing the whole config object.
+
     max_turns = config.get("game", "max_turns")
     if max_turns is None:
         max_turns = 1000  # Default value if not set in config
     game_loop = GameLoop(board, max_turns=max_turns, config=config)
+
 
     # Store the created GameLoop instance
     game_instances["default_game"] = game_loop
@@ -334,6 +342,7 @@ def _get_board_state_and_populate_entity_map(game_loop: GameLoop, game_id: str) 
     current_game_entity_map: Dict[str, Any] = {}
 
     for y, row in enumerate(game_loop.board.grid):
+
         for x, cell_content in enumerate(row):
             # Skip if cell is None or empty
             if cell_content is None:
@@ -375,6 +384,7 @@ def _get_board_state_and_populate_entity_map(game_loop: GameLoop, game_id: str) 
             if entity_type:
                 entities_on_board.append(Entity(id=entity_api_id, type=entity_type, x=x, y=y, name=name, details=details))
                 current_game_entity_map[entity_api_id] = obj # Store actual object
+
 
     return entities_on_board, current_game_entity_map
 
@@ -465,7 +475,9 @@ async def get_entity_details(game_id: str, entity_id: str):
         raise HTTPException(status_code=404, detail=f"Game with ID '{game_id}' not found.")
 
 
+
     if isinstance(entity_obj, Unit):
+
         # Populate UnitStats
         return UnitStats(
             id=entity_id,
@@ -485,15 +497,19 @@ async def get_entity_details(game_id: str, entity_id: str):
             experience=getattr(entity_obj, 'experience', None),
             traits=getattr(entity_obj, 'traits', set())
         )
+
     elif isinstance(entity_obj, Plant):
+
         # Populate PlantStats
         plant_state = getattr(entity_obj, 'state', None)
         return PlantStats(
             id=entity_id,
             plant_type=getattr(entity_obj, 'plant_type', type(entity_obj).__name__),
             symbol=getattr(entity_obj, 'symbol', None),
+
             x=entity_obj.position.x, # Plant stores position as an object
             y=entity_obj.position.y, # Plant stores position as an object
+
             energy_content=getattr(plant_state, 'energy_content', None) if plant_state else None,
             base_energy=getattr(entity_obj, 'base_energy', None),
             growth_stage=getattr(plant_state, 'growth_stage', None) if plant_state else None,
@@ -503,6 +519,7 @@ async def get_entity_details(game_id: str, entity_id: str):
     else:
         # Should not happen if entity_map is populated correctly
         raise HTTPException(status_code=500, detail=f"Unknown entity type for ID '{entity_id}'.")
+
 
 @app.post("/game/new")
 async def create_new_game():
@@ -528,3 +545,4 @@ async def create_new_game():
     game_loop = GameLoop(board, max_turns=max_turns, config=config)
     game_instances[game_id] = game_loop
     return {"game_id": game_id}
+
