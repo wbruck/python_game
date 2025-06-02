@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 const entity = entitiesMap.get(`${x}-${y}`);
                 if (entity) {
                     cellDiv.dataset.entityId = entity.id;
+                    console.log(`Rendered entity ${entity.id} at (${x},${y}) with type ${entity.type}`);
                     if (entity.type === 'unit') {
                         cellDiv.textContent = entity.unit_type ? entity.unit_type.charAt(0).toUpperCase() : 'U';
                         cellDiv.classList.add('unit');
@@ -60,31 +61,38 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function handleCellClick(event) {
-        const cell = event.currentTarget;
+        console.log('handleCellClick triggered. Clicked target:', event.target, 'Listener on (currentTarget):', event.currentTarget);
+        const cell = event.currentTarget; // The element the listener is attached to
         const entityId = cell.dataset.entityId;
+        console.log('Retrieved entityId from cell dataset:', entityId);
 
         if (entityId) {
             try {
                 const response = await fetch(`${API_BASE_URL}/entity/${entityId}`);
+                console.log(`API call to /entity/${entityId} - Status: ${response.status}, OK: ${response.ok}`);
                 if (!response.ok) {
-                    console.error('Failed to fetch entity data:', response.status, await response.text());
-                    statsContentDiv.innerHTML = '<p>Error loading entity data.</p>';
-                    showStatsSidebar(); // Show sidebar even if there's an error to display message
+                    const errorText = await response.text();
+                    console.error(`Failed to fetch entity data for ID ${entityId}:`, response.status, errorText);
+                    statsContentDiv.innerHTML = `<p>Error loading entity data for ID ${entityId}. Status: ${response.status}</p>`;
+                    showStatsSidebar();
                     return;
                 }
                 const entityData = await response.json();
+                console.log('Successfully fetched entity data:', entityData);
                 displayStats(entityData);
             } catch (error) {
-                console.error('Error fetching entity data:', error);
-                statsContentDiv.innerHTML = '<p>Error loading entity data.</p>';
+                console.error(`Error during fetch or processing for entity ID ${entityId}:`, error);
+                statsContentDiv.innerHTML = '<p>An error occurred while fetching entity data.</p>';
                 showStatsSidebar();
             }
         } else {
+            console.log('No entityId found on clicked cell. Hiding sidebar.');
             hideStatsSidebar();
         }
     }
 
     function displayStats(entityData) {
+        console.log('Displaying stats for:', entityData);
         statsContentDiv.innerHTML = ''; // Clear previous stats
 
         const ul = document.createElement('ul');
