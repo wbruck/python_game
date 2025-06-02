@@ -3,52 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ecosystem Simulation Game</title>
+    <title>Ecosystem Simulation Game - API Version</title>
+    <link rel="stylesheet" href="/static/style.css"> <!-- Assuming styles might be in style.css -->
     <style>
+        /* Basic styles if style.css is not comprehensive */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
             padding: 20px;
             background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         .container {
+            display: flex;
+            width: 100%;
             max-width: 1200px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            gap: 20px;
+        }
+        .main-content {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
         h1 {
             color: #333;
             text-align: center;
         }
+        #game-controls {
+            margin-bottom: 20px;
+        }
         #game-board {
             display: grid;
             gap: 1px;
-            background-color: #ddd;
-            padding: 10px;
-            margin: 20px auto;
-            max-width: fit-content;
+            background-color: #ccc; /* Changed for better visibility of cells */
+            border: 1px solid #999;
+            max-width: fit-content; /* Ensure board does not overstretch */
         }
         .cell {
-            width: 30px;
-            height: 30px;
+            width: 30px; /* Default, JS can override */
+            height: 30px; /* Default, JS can override */
             background-color: #fff;
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
+            border: 1px solid #eee;
+            cursor: pointer; /* Indicate cells are clickable */
         }
-        .predator { color: #ff0000; }
-        .grazer { color: #00aa00; }
-        .plant { color: #008800; }
+        .cell:hover {
+            background-color: #f0f0f0;
+        }
+        .unit { /* Generic unit style */
+            /* Example: border-radius: 50%; */
+        }
+        .plant { /* Generic plant style */
+            /* Example: font-style: italic; */
+        }
+        /* Specific entity type styling based on names from API (e.g., Predator, Peashooter) */
+        .predator { color: #E53935; font-weight: bold; } /* Red */
+        .scavenger { color: #8D6E63; } /* Brown */
+        .grazer { color: #7CB342; } /* Light Green */
+        .basicplant { color: #4CAF50; font-style: italic; } /* Green */
+        /* Add more specific styles as needed */
+
+        #entity-details-panel {
+            width: 300px; /* Fixed width for the panel */
+            flex-shrink: 0; /* Prevent panel from shrinking */
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            height: fit-content; /* Adjust height to content */
+        }
+        #entity-details-panel h3 {
+            margin-top: 0;
+            color: #555;
+        }
+        #entity-details-panel ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        #entity-details-panel li {
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+        #entity-details-panel li:last-child {
+            border-bottom: none;
+        }
+        #turn-info {
+            margin: 10px;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
+    <h1>Ecosystem Simulation Game - API Control</h1>
+    <div id="game-controls">
+        <button id="next-turn-btn">Next Turn</button>
+    </div>
+    <div id="turn-info">Turn: 0</div>
+
     <div class="container">
-        <h1>Ecosystem Simulation Game</h1>
-        <div id="game-board"></div>
+        <div class="main-content">
+            <div id="game-board"></div>
+        </div>
+        <div id="entity-details-panel">
+            <h3>Entity Details</h3>
+            <div id="details-content">Click on an entity to see its details.</div>
+        </div>
     </div>
 
     <script src="/static/script.js" defer></script>

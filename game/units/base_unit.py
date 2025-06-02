@@ -5,7 +5,6 @@ This module implements the base Unit class with fundamental RPG-style stats and 
 All other unit types will inherit from this base class.
 """
 
-import uuid
 from game.plants.base_plant import Plant # Added import
 
 # Predefined unit templates for different roles
@@ -67,8 +66,6 @@ class Unit:
             config (Config, optional): Configuration object for accessing game settings.
         """
         self.config = config  # Store the config object
-        self.unit_type = unit_type  # Store the unit type
-        self.uuid = str(uuid.uuid4())[:3]  # Generate a 3-character identifier from UUID
 
         # Load energy costs from config or use defaults
         if config:

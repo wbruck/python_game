@@ -8,13 +8,13 @@
         "max_turns": 500,
         "turn_delay": 0.2,
         "visualization_update_frequency": 1,
-        "unit_stats_print_frequency": 15
+        "unit_stats_print_frequency": 5
     },
     "units": {
         "initial_count": {
-            "predator": 3,
+            "predator": 5,
             "scavenger": 8,
-            "grazer": 20
+            "grazer": 12
         },
         "energy_consumption": {
             "move": 1,
