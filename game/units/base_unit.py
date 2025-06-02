@@ -72,6 +72,9 @@ class Unit:
             self.energy_cost_move = config.get("units", "energy_consumption.move")
             self.energy_cost_attack = config.get("units", "energy_consumption.attack")
             self.energy_cost_look = config.get("units", "energy_consumption.look")
+            self.resting_exit_energy_ratio = config.get("units", "resting_exit_energy_ratio")
+            self.max_resting_turns = config.get("units", "max_resting_turns")
+            self.min_energy_force_exit_rest_ratio = config.get("units", "min_energy_force_exit_rest_ratio")
 
         # Provide hardcoded defaults if config is not present or a key is missing
         if not hasattr(self, 'energy_cost_move') or self.energy_cost_move is None:
@@ -80,6 +83,12 @@ class Unit:
             self.energy_cost_attack = 2  # Default attack cost
         if not hasattr(self, 'energy_cost_look') or self.energy_cost_look is None:
             self.energy_cost_look = 0  # Default look cost
+        if not hasattr(self, 'resting_exit_energy_ratio') or self.resting_exit_energy_ratio is None:
+            self.resting_exit_energy_ratio = 0.6  # Default
+        if not hasattr(self, 'max_resting_turns') or self.max_resting_turns is None:
+            self.max_resting_turns = 20  # Default
+        if not hasattr(self, 'min_energy_force_exit_rest_ratio') or self.min_energy_force_exit_rest_ratio is None:
+            self.min_energy_force_exit_rest_ratio = 0.4  # Default
 
         # Use template if unit_type is provided
         if unit_type and unit_type in UNIT_TEMPLATES:
@@ -226,7 +235,7 @@ class Unit:
         # Unit should not move if energy is less than or equal to the cost,
         # meaning the move would leave it with 0 or negative energy.
         # The test `test_movement_mechanics` expects this behavior.
-        if self.energy <= current_move_cost: # Modified from < to <=
+        if self.energy < current_move_cost: # Modified from < to <=
             return False
             
         # Check if movement is possible
@@ -431,10 +440,17 @@ class Unit:
             self.speed = int(self.base_speed * 1.5) + 1
         elif self.energy <= self.max_energy * 0.4:
             self.state = "feeding"
-        elif self.state == "resting" and self.energy > self.max_energy * 0.8:
+        elif self.state == "resting" and self.energy > self.max_energy * self.resting_exit_energy_ratio: # Lowered threshold
             self.state = "wandering"
         elif self.state == "feeding" and self.energy > self.max_energy * 0.9:
             self.state = "wandering"
+
+        # Impatient rest: Max duration for resting
+        if (self.state == "resting" and
+            self.state_duration >= self.max_resting_turns and
+            self.energy > self.max_energy * self.min_energy_force_exit_rest_ratio):
+            self.state = "wandering"
+            self.state_duration = 0 # Reset duration as state is changing
             
         if self.state == "hunting":
             self.strength = int(self.base_strength * 1.2)
