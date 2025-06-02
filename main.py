@@ -22,6 +22,7 @@ def parse_args():
     parser.add_argument("--no-display", action="store_true", help="Disable visual display")
     parser.add_argument("--turns", type=int, help="Override number of turns")
     parser.add_argument("--seed", type=int, help="Random seed for reproducibility")
+    parser.add_argument("--serve-web", action="store_true", help="Start the FastAPI web server for the game interface")
     return parser.parse_args()
 
 def setup_game(config):
@@ -108,6 +109,20 @@ def print_unit_stats(game_loop, current_turn):
 def main():
     """Main function to run the game."""
     args = parse_args()
+
+    if args.serve_web:
+        try:
+            import uvicorn
+            from web_server import app  # Assuming web_server.py and app object exist
+            print("Starting web server on http://0.0.0.0:8000")
+            print("Access the game interface at http://0.0.0.0:8000/static/index.html")
+            uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+        except ImportError as e:
+            print(f"Error importing modules for web server: {e}")
+            print("Please ensure 'uvicorn' and 'fastapi' are installed and web_server.py is correctly set up.")
+        except Exception as e:
+            print(f"Failed to start web server: {e}")
+        return  # Exit after attempting to start/starting the server
     
     # Set random seed if provided
     if args.seed is not None:
