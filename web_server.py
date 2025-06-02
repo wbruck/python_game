@@ -97,30 +97,13 @@ class PlantStats(BaseModel):
 # Global store for entities, populated by get_board_state
 entity_map: Dict[str, object] = {}
 
-# Temporary board initialization
-game_board = Board(width=20, height=15)
+# Shared game board instance
+shared_game_board: Optional[Board] = None
 
-# Add sample units and plants
-try:
-    predator_unit = Predator(x=2,y=2)
-    if hasattr(predator_unit, 'gain_experience'): # Check if method exists (it will for dummy too)
-        predator_unit.gain_experience("combat", 25)
-    game_board.place_object(predator_unit, 2, 2)
-
-    grazer_unit = Grazer(x=5,y=5)
-    game_board.place_object(grazer_unit, 5, 5)
-
-    plant_pos = Position(x=7,y=7) # Use Position if available
-    plant1 = BasicPlant(position=plant_pos, base_energy=10, growth_rate=0.1, regrowth_time=10)
-    game_board.place_object(plant1, plant_pos.x, plant_pos.y)
-
-    plant2_generic_pos = Position(x=10,y=10)
-    plant2_generic = Plant(position=plant2_generic_pos, base_energy=10, growth_rate=0.1, regrowth_time=10, symbol="G")
-    game_board.place_object(plant2_generic, plant2_generic_pos.x, plant2_generic_pos.y)
-
-except Exception as e:
-    print(f"An unexpected error occurred during sample data creation: {e}")
-
+def set_game_board(board_instance: Board):
+    """Sets the global game board instance for the web server."""
+    global shared_game_board
+    shared_game_board = board_instance
 
 @app.get("/")
 async def read_root():
@@ -132,12 +115,16 @@ async def get_board_state():
     entity_map.clear() # Clear map on each call
     entities: List[Entity] = []
 
-    if game_board is None:
+    if shared_game_board is None:
+        # Return an empty board or a default state if the game board isn't initialized yet
         return BoardResponse(width=0, height=0, entities=[])
 
-    for y_coord in range(game_board.height):
-        for x_coord in range(game_board.width):
-            obj = game_board.get_object(x_coord, y_coord)
+    # Use the shared_game_board
+    current_board = shared_game_board
+
+    for y_coord in range(current_board.height):
+        for x_coord in range(current_board.width):
+            obj = current_board.get_object(x_coord, y_coord)
             if obj:
                 # Ensure obj has an id, x, and y for robust entity creation
                 obj_id_val = getattr(obj, 'id', id(obj))
@@ -165,7 +152,7 @@ async def get_board_state():
                     unit_type=unit_type_attr,
                     symbol=plant_symbol_attr
                 ))
-    return BoardResponse(width=game_board.width, height=game_board.height, entities=entities)
+    return BoardResponse(width=current_board.width, height=current_board.height, entities=entities)
 
 @app.get("/entity/{entity_id}", response_model=Union[UnitStats, PlantStats])
 async def get_entity_details(entity_id: str):

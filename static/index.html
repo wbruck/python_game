@@ -51,48 +51,6 @@
         <div id="game-board"></div>
     </div>
 
-    <script>
-        async function fetchBoardState() {
-            try {
-                const response = await fetch('/board');
-                const data = await response.json();
-                updateBoard(data);
-            } catch (error) {
-                console.error('Error fetching board state:', error);
-            }
-        }
-
-        function updateBoard(data) {
-            const board = document.getElementById('game-board');
-            board.style.gridTemplateColumns = `repeat(${data.width}, 30px)`;
-            board.innerHTML = '';
-
-            // Create empty cells
-            for (let y = 0; y < data.height; y++) {
-                for (let x = 0; x < data.width; x++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'cell';
-                    board.appendChild(cell);
-                }
-            }
-
-            // Place entities
-            data.entities.forEach(entity => {
-                const index = entity.y * data.width + entity.x;
-                const cell = board.children[index];
-                if (entity.type === 'unit') {
-                    cell.textContent = entity.unit_type === 'predator' ? 'P' : 'G';
-                    cell.classList.add(entity.unit_type);
-                } else if (entity.type === 'plant') {
-                    cell.textContent = entity.symbol || '🌱';
-                    cell.classList.add('plant');
-                }
-            });
-        }
-
-        // Initial fetch and periodic updates
-        fetchBoardState();
-        setInterval(fetchBoardState, 1000);
-    </script>
+    <script src="/static/script.js" defer></script>
 </body>
 </html>
