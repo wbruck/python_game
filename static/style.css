@@ -1,0 +1,103 @@
+body {
+    font-family: sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 20px;
+    background-color: #f4f4f4;
+}
+
+h1 {
+    color: #333;
+}
+
+.container {
+    display: flex;
+    gap: 20px;
+    align-items: flex-start;
+}
+
+#game-board {
+    display: grid;
+    border: 1px solid #ccc;
+    background-color: #fff;
+    /* width and grid-template-columns/rows will be set by JS */
+}
+
+.cell {
+    width: 30px; /* Should match JS size */
+    height: 30px; /* Should match JS size */
+    border: 1px solid #eee;
+    box-sizing: border-box;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 14px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.cell:hover {
+    background-color: #f0f0f0;
+}
+
+.unit {
+    background-color: #add8e6; /* Light blue for units */
+    font-weight: bold;
+}
+
+.unit.predator {
+    color: #a52a2a; /* Brown for predator */
+}
+.unit.grazer {
+    color: #228b22; /* Forest green for grazer */
+}
+.unit.scavenger {
+    color: #708090; /* Slate gray for scavenger */
+}
+
+
+.plant {
+    background-color: #90ee90; /* Light green for plants */
+    color: darkgreen;
+}
+
+#stats-sidebar {
+    width: 250px;
+    border: 1px solid #ccc;
+    padding: 15px;
+    background-color: #fff;
+    box-shadow: 2px 2px 5px rgba(0,0,0,0.1);
+}
+
+#stats-sidebar h2 {
+    margin-top: 0;
+    font-size: 1.2em;
+    color: #555;
+    border-bottom: 1px solid #eee;
+    padding-bottom: 5px;
+}
+
+#stats-content ul {
+    list-style-type: none;
+    padding: 0;
+    margin: 0;
+}
+
+#stats-content li {
+    padding: 5px 0;
+    font-size: 0.9em;
+    border-bottom: 1px solid #f9f9f9;
+}
+#stats-content li:last-child {
+    border-bottom: none;
+}
+
+#stats-content li strong {
+    color: #333;
+    text-transform: capitalize;
+}
+
+.hidden {
+    display: none;
+}

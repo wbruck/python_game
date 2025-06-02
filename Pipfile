@@ -4,12 +4,15 @@ verify_ssl = true
 name = "pypi"
 
 [packages]
+fastapi = "*"
+uvicorn = {extras = ["standard"], version = "*"}
 # Add project dependencies here
 
 [dev-packages]
 pytest = ">=7.0.0"
 pytest-cov = ">=4.0.0"
 flake8 = ">=6.0.0"
+httpx = "*"
 
 [requires]
 python_version = "3.12"
