@@ -24,6 +24,7 @@ class Colors:
     MAGENTA = "\033[35m"
     CYAN = "\033[36m"
     WHITE = "\033[37m"
+    ORANGE = "\033[38;5;208m"  # Using 256-color code for orange
 
 class Visualization:
     """
@@ -49,14 +50,14 @@ class Visualization:
                 "decaying": c.RED + "%" + c.RESET,
             },
             "scavenger": {
-                "idle": c.YELLOW + "S" + c.RESET,
-                "hunting": c.YELLOW + c.BOLD + "S" + c.RESET,
-                "fleeing": c.YELLOW + "s" + c.RESET,
-                "feeding": c.YELLOW + "F" + c.RESET,
-                "wandering": c.YELLOW + "w" + c.RESET,
-                "resting": c.YELLOW + "r" + c.RESET,
-                "dead": c.YELLOW + "x" + c.RESET,
-                "decaying": c.YELLOW + "%" + c.RESET,
+                "idle": c.BLUE + "S" + c.RESET,
+                "hunting": c.BLUE + c.BOLD + "S" + c.RESET,
+                "fleeing": c.BLUE + "s" + c.RESET,
+                "feeding": c.BLUE + "F" + c.RESET,
+                "wandering": c.BLUE + "w" + c.RESET,
+                "resting": c.BLUE + "r" + c.RESET,
+                "dead": c.BLUE + "x" + c.RESET,
+                "decaying": c.BLUE + "%" + c.RESET,
             },
             "grazer": {
                 "idle": c.GREEN + "G" + c.RESET,
@@ -98,8 +99,8 @@ class Visualization:
         """Get the appropriate symbol for a unit based on its type and state."""
         if hasattr(unit, "unit_type") and hasattr(unit, "state"):
             unit_symbols = self.UNIT_SYMBOLS.get(unit.unit_type, {})
-            return unit_symbols.get(unit.state, Colors.WHITE + "?" + Colors.RESET)
-        return Colors.WHITE + "?" + Colors.RESET
+            return unit_symbols.get(unit.state, Colors.ORANGE + "?" + Colors.RESET)
+        return Colors.ORANGE + "?" + Colors.RESET
     
     def _get_plant_symbol(self, plant: Plant) -> str:
         """Get the appropriate symbol for a plant based on its state."""

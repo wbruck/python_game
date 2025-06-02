@@ -97,13 +97,41 @@ def display_game(game_loop):
     # print("-" * 40)
     pass # Contents commented out as per instructions
 
+
 def print_unit_stats(game_loop, current_turn):
     """Prints statistics for each unit."""
-    print(f"--- Unit Stats (Turn {current_turn}) ---")
+    # ANSI color codes
+    RED = "\033[31m"
+    RESET = "\033[0m"
+    
+    print("\n=== Unit Type Legend ===")
+    print("P - Predator (hunts other units) - Red")
+    print("S - Scavenger (consumes dead units) - Blue")
+    print("G - Grazer (consumes plants) - Green")
+    print("? - Unknown unit type or state - Orange")
+    print("\n=== Unit States ===")
+    print("P/S/G - Idle (uppercase)")
+    print("p/s/g - Fleeing (lowercase)")
+    print("F - Feeding")
+    print("w - Wandering")
+    print("r - Resting")
+    print("x - Dead")
+    print("% - Decaying")
+    print("\n=== Colors ===")
+    print("Red - Predator units and dead units")
+    print("Blue - Scavenger units")
+    print("Green - Grazer units and plants")
+    print("Orange - Unknown or error state")
+    print("Bold - Active state (hunting)")
+    print("=" * 30)
+    
+    print(f"\n--- Unit Stats (Turn {current_turn}) ---")
     for unit in game_loop.units:
-        print(f"  - Type: {unit.unit_type}, Pos: ({unit.position.x}, {unit.position.y}), "
-              f"Energy: {unit.energy}, State: {unit.state}, Alive: {unit.alive}")
+        color = RED if not unit.alive else ""
+        print(f"{color}  - Type: {unit.unit_type}, ID: {unit.uuid}, Pos: ({unit.x}, {unit.y}), "
+              f"Energy: {unit.energy}, State: {unit.state}, Alive: {unit.alive}{RESET}")
     print(f"--- End Unit Stats ---")
+    input("Press Enter to continue...")
 
 def main():
     """Main function to run the game."""
