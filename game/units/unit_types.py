@@ -66,106 +66,180 @@ class Predator(Unit):
 
     def _hunt_prey(self, board):
         """Hunt for prey within vision range."""
-        visible_objects_data = self.look(board)
-
-        visible_units = []
-        for item in visible_objects_data:
-            obj = item[0]
-            if hasattr(obj, 'alive'):
-                visible_units.append(obj)
-
-        potential_prey = [u for u in visible_units if isinstance(u, (Grazer, Scavenger)) and u.alive]
+        possible_moves, visible_objects = self.get_potential_moves_in_vision_range(board)
         
-        if potential_prey:
-            target = min(potential_prey, key=lambda u: ((u.x - self.x)**2 + (u.y - self.y)**2)**0.5)
-            dx = 0 if target.x == self.x else (1 if target.x > self.x else -1)
-            dy = 0 if target.y == self.y else (1 if target.y > self.y else -1)
-            
-            if abs(dx) + abs(dy) > self.speed:
-                if abs(target.x - self.x) > abs(target.y - self.y): dy = 0
-                else: dx = 0
-            
-            if abs(target.x - self.x) <= 1 and abs(target.y - self.y) <= 1:
-                energy_before_attack = self.energy
-                self.attack(target)
-                if self.energy < energy_before_attack:
-                    self.state = "combat"
-                    self.gain_experience("combat")
-                    if not target.alive:
-                        self.gain_experience("hunting")
-                        self.eat(target)
-            else:
-                moved = self.move(dx, dy, board)
-                if not moved and (dx != 0 or dy != 0):
-                    cardinal_dx = 0 if target.x == self.x else (1 if target.x > self.x else -1)
-                    cardinal_dy = 0 if target.y == self.y else (1 if target.y > self.y else -1)
-                    if cardinal_dx != 0 and self.move(cardinal_dx, 0, board):
-                        moved = True
-                    elif cardinal_dy != 0 and self.move(0, cardinal_dy, board):
-                        moved = True
+        potential_prey = [obj for obj, x, y in visible_objects if isinstance(obj, (Grazer, Scavenger)) and obj.alive]
 
-                if moved:
-                    self.energy -= self.energy_cost_move_hunt
-                    self.gain_experience("hunting", 0.5)
+        # 1. Immediate Action: Attack adjacent prey
+        if potential_prey:
+            for prey in potential_prey:
+                if abs(prey.x - self.x) <= 1 and abs(prey.y - self.y) <= 1: # Adjacent
+                    energy_before_attack = self.energy
+                    damage_dealt = self.attack(prey)
+                    if damage_dealt > 0 : # Successful attack
+                        self.state = "combat"
+                        self.gain_experience("combat")
+                        if not prey.alive:
+                            self.gain_experience("hunting")
+                            self.eat(prey) # Attempt to eat immediately
+                        return # Action taken (attacked)
+
+        # 2. Score moves to hunt prey if no immediate attack was made
+        if potential_prey and possible_moves:
+            closest_prey = min(potential_prey, key=lambda p: abs(p.x - self.x) + abs(p.y - self.y))
+            
+            scored_moves = []
+            current_dist_to_prey = abs(closest_prey.x - self.x) + abs(closest_prey.y - self.y)
+
+            for move_x, move_y in possible_moves:
+                dist_after_move = abs(closest_prey.x - move_x) + abs(closest_prey.y - move_y)
+                score = current_dist_to_prey - dist_after_move # Higher score if move reduces distance
+                scored_moves.append((score, (move_x, move_y)))
+            
+            if scored_moves:
+                scored_moves.sort(key=lambda x: x[0], reverse=True)
+                if scored_moves[0][0] > 0: # Only move if it's beneficial
+                    best_move_coords = scored_moves[0][1]
+                    dx = best_move_coords[0] - self.x
+                    dy = best_move_coords[1] - self.y
+                    if self.move(dx, dy, board):
+                        self.energy -= self.energy_cost_move_hunt
+                        self.gain_experience("hunting", 0.5)
+                    return # Action taken (moved to hunt)
+
+        # 3. Fallback: Exploration if no prey to hunt or no good move
+        exploration_move = self._get_exploration_move()
+        if exploration_move:
+            explore_target_x, explore_target_y = exploration_move
+            # Check if this exploration target is in our possible_moves
+            if (explore_target_x, explore_target_y) in possible_moves:
+                dx = explore_target_x - self.x
+                dy = explore_target_y - self.y
+                if self.move(dx, dy, board):
+                    self.energy -= self.energy_cost_move # Standard move cost for exploration
+            # If exploration target is not an immediate move, try to find a move towards it
+            elif possible_moves: # Try to move towards exploration target
+                scored_exploration_moves = []
+                current_dist_to_explore_target = abs(explore_target_x - self.x) + abs(explore_target_y - self.y)
+                for move_x, move_y in possible_moves:
+                    dist_after_move = abs(explore_target_x - move_x) + abs(explore_target_y - move_y)
+                    score = current_dist_to_explore_target - dist_after_move
+                    scored_exploration_moves.append((score, (move_x, move_y)))
+
+                if scored_exploration_moves:
+                    scored_exploration_moves.sort(key=lambda x: x[0], reverse=True)
+                    if scored_exploration_moves[0][0] >= 0: # Allow neutral moves for exploration
+                        best_move_coords = scored_exploration_moves[0][1]
+                        dx = best_move_coords[0] - self.x
+                        dy = best_move_coords[1] - self.y
+                        if self.move(dx, dy, board):
+                            self.energy -= self.energy_cost_move
+
 
     def _find_closest_food(self, board):
         """Find and move toward the closest food source (typically dead units for Predator)."""
-        visible_objects_data = self.look(board)
-        food_sources = [item[0] for item in visible_objects_data if hasattr(item[0], 'alive') and not item[0].alive and hasattr(item[0], 'decay_stage') and item[0].decay_stage < 3]
+        possible_moves, visible_objects = self.get_potential_moves_in_vision_range(board)
 
+        food_sources = [obj for obj, x, y in visible_objects if not obj.alive and hasattr(obj, 'decay_stage') and obj.decay_stage < 3]
+
+        # 1. Immediate Action: Eat adjacent food
         if food_sources:
-            target = min(food_sources, key=lambda u: ((u.x - self.x)**2 + (u.y - self.y)**2)**0.5)
-            if abs(target.x - self.x) <= 1 and abs(target.y - self.y) <= 1:
-                self.eat(target)
-            else:
-                move_dx = 1 if target.x > self.x else (-1 if target.x < self.x else 0)
-                move_dy = 1 if target.y > self.y else (-1 if target.y < self.y else 0)
-                moved = self.move(move_dx, move_dy, board)
-                if not moved and (move_dx != 0 or move_dy != 0):
-                    if move_dx != 0 and self.move(move_dx, 0, board): moved = True
-                    elif move_dy != 0 and self.move(0, move_dy, board): moved = True
+            for food in food_sources:
+                if abs(food.x - self.x) <= 1 and abs(food.y - self.y) <= 1: # Adjacent
+                    if self.eat(food):
+                        self.gain_experience("feeding")
+                    return # Action taken (ate or tried to eat)
 
-                if moved:
+        # 2. Score moves to reach food
+        if food_sources and possible_moves:
+            closest_food = min(food_sources, key=lambda f: abs(f.x - self.x) + abs(f.y - self.y))
+            scored_moves = []
+            current_dist_to_food = abs(closest_food.x - self.x) + abs(closest_food.y - self.y)
+
+            for move_x, move_y in possible_moves:
+                dist_after_move = abs(closest_food.x - move_x) + abs(closest_food.y - move_y)
+                score = current_dist_to_food - dist_after_move
+                scored_moves.append((score, (move_x, move_y)))
+
+            if scored_moves:
+                scored_moves.sort(key=lambda x: x[0], reverse=True)
+                if scored_moves[0][0] > 0:
+                    best_move_coords = scored_moves[0][1]
+                    dx = best_move_coords[0] - self.x
+                    dy = best_move_coords[1] - self.y
+                    if self.move(dx, dy, board):
+                        self.energy -= self.energy_cost_move # Standard move cost
+                    return # Action taken (moved to food)
+
+        # 3. Fallback: Exploration if no food or no good move
+        exploration_move = self._get_exploration_move()
+        if exploration_move:
+            explore_target_x, explore_target_y = exploration_move
+            if (explore_target_x, explore_target_y) in possible_moves:
+                dx = explore_target_x - self.x
+                dy = explore_target_y - self.y
+                if self.move(dx, dy, board):
                     self.energy -= self.energy_cost_move
-        else:
-            # No dead units visible, perform an exploration move
-            explore_dx, explore_dy = self._get_exploration_move()
-            if explore_dx is not None and explore_dy is not None:
-                if self.move(explore_dx, explore_dy, board):
-                    self.energy -= self.energy_cost_move
+            elif possible_moves: # Try to move towards exploration target
+                scored_exploration_moves = []
+                current_dist_to_explore_target = abs(explore_target_x - self.x) + abs(explore_target_y - self.y)
+                for move_x, move_y in possible_moves:
+                    dist_after_move = abs(explore_target_x - move_x) + abs(explore_target_y - move_y)
+                    score = current_dist_to_explore_target - dist_after_move
+                    scored_exploration_moves.append((score, (move_x, move_y)))
+
+                if scored_exploration_moves:
+                    scored_exploration_moves.sort(key=lambda x: x[0], reverse=True)
+                    if scored_exploration_moves[0][0] >= 0:
+                        best_move_coords = scored_exploration_moves[0][1]
+                        dx = best_move_coords[0] - self.x
+                        dy = best_move_coords[1] - self.y
+                        if self.move(dx, dy, board):
+                            self.energy -= self.energy_cost_move
 
     def _flee_from_threats(self, board):
         """Predator flees from other (presumably stronger) Predators."""
-        visible_units = self.look(board)
-        threats = [item[0] for item in visible_units if isinstance(item[0], Predator) and item[0] != self and item[0].alive]
+        possible_moves, visible_objects = self.get_potential_moves_in_vision_range(board)
         
-        if threats:
-            threat = min(threats, key=lambda u: ((u.x - self.x)**2 + (u.y - self.y)**2)**0.5)
-            flee_dx = 0
-            if self.x < threat.x: flee_dx = -1
-            elif self.x > threat.x: flee_dx = 1
-            flee_dy = 0
-            if self.y < threat.y: flee_dy = -1
-            elif self.y > threat.y: flee_dy = 1
-            
-            if flee_dx == 0 and flee_dy == 0:
-                 flee_dx = random.choice([-1,1]) if board.is_valid_position(self.x-1, self.y) or board.is_valid_position(self.x+1, self.y) else 0
-                 flee_dy = random.choice([-1,1]) if board.is_valid_position(self.x, self.y-1) or board.is_valid_position(self.x, self.y+1) else 0
-                 if flee_dx == 0 and flee_dy == 0:
-                     available = board.get_available_moves(self.x, self.y)
-                     if available:
-                         panic_pos = random.choice(available)
-                         flee_dx = panic_pos.x - self.x
-                         flee_dy = panic_pos.y - self.y
+        threats = [obj for obj, x, y in visible_objects if isinstance(obj, Predator) and obj != self and obj.alive]
 
-            moved = self.move(flee_dx, flee_dy, board)
-            if not moved and (flee_dx != 0 or flee_dy != 0):
-                if flee_dx != 0 and self.move(flee_dx, 0, board): moved = True
-                elif flee_dy != 0 and self.move(0, flee_dy, board): moved = True
+        if not threats:
+            return # No threats to flee from
 
-            if moved:
-                self.energy -= self.energy_cost_move_flee
-                self.gain_experience("fleeing")
+        if not possible_moves:
+            return # Nowhere to flee
+
+        closest_threat = min(threats, key=lambda t: abs(t.x - self.x) + abs(t.y - self.y))
+        scored_moves = []
+        current_dist_to_threat = abs(closest_threat.x - self.x) + abs(closest_threat.y - self.y)
+
+        for move_x, move_y in possible_moves:
+            dist_after_move = abs(closest_threat.x - move_x) + abs(closest_threat.y - move_y)
+            # Score is how much distance is increased. Negative score means closer to threat.
+            score = dist_after_move - current_dist_to_threat
+            scored_moves.append((score, (move_x, move_y)))
+
+        if scored_moves:
+            scored_moves.sort(key=lambda x: x[0], reverse=True)
+            # Prefer any move that increases distance, or at least doesn't decrease it if cornered
+            if scored_moves[0][0] >= 0:
+                best_move_coords = scored_moves[0][1]
+                dx = best_move_coords[0] - self.x
+                dy = best_move_coords[1] - self.y
+                if self.move(dx, dy, board):
+                    self.energy -= self.energy_cost_move_flee
+                    self.gain_experience("fleeing")
+            else: # If all moves lead closer or are neutral but bad, pick the "least bad" or random
+                # For now, pick the one that gets us "least closer" or a random one if multiple equally bad.
+                # Or, if all scores are negative, could pick a random move from possible_moves.
+                # Let's just pick the top one from sorted list, even if score is negative.
+                best_move_coords = scored_moves[0][1]
+                dx = best_move_coords[0] - self.x
+                dy = best_move_coords[1] - self.y
+                if self.move(dx, dy, board):
+                    self.energy -= self.energy_cost_move_flee
+                    self.gain_experience("fleeing")
+        # If no scored_moves (e.g. possible_moves was empty, though checked above), do nothing.
 
 class Scavenger(Unit):
     """
@@ -200,99 +274,175 @@ class Scavenger(Unit):
 
     def _search_for_corpses(self, board):
         """Search for dead units to consume."""
-        visible_objects_data = self.look(board)
-        corpses = [item[0] for item in visible_objects_data if hasattr(item[0], 'alive') and not item[0].alive and hasattr(item[0], 'decay_stage') and item[0].decay_stage < 4]
+        possible_moves, visible_objects = self.get_potential_moves_in_vision_range(board)
         
-        if corpses:
-            target = min(corpses, key=lambda u: ((u.x - self.x)**2 + (u.y - self.y)**2)**0.5)
-            if abs(target.x - self.x) <= 1 and abs(target.y - self.y) <= 1:
-                self.eat(target)
-            else:
-                move_dx = 1 if target.x > self.x else (-1 if target.x < self.x else 0)
-                move_dy = 1 if target.y > self.y else (-1 if target.y < self.y else 0)
-                moved = self.move(move_dx, move_dy, board)
-                if not moved and (move_dx != 0 or move_dy != 0):
-                    if move_dx != 0:
-                        if self.move(move_dx, 0, board):
-                            moved = True
-                    if not moved and move_dy != 0:
-                        if self.move(0, move_dy, board):
-                            moved = True
+        corpses = [obj for obj, x, y in visible_objects if not obj.alive and hasattr(obj, 'decay_stage') and obj.decay_stage < 4]
 
-                if moved:
+        # 1. Immediate Action: Eat adjacent corpse
+        if corpses:
+            for corpse in corpses:
+                if abs(corpse.x - self.x) <= 1 and abs(corpse.y - self.y) <= 1:
+                    if self.eat(corpse):
+                        self.gain_experience("feeding") # Scavengers gain exp for eating corpses
+                    return # Action taken
+
+        # 2. Score moves to reach corpses
+        if corpses and possible_moves:
+            target_corpse = min(corpses, key=lambda c: abs(c.x - self.x) + abs(c.y - self.y))
+            scored_moves = []
+            current_dist_to_corpse = abs(target_corpse.x - self.x) + abs(target_corpse.y - self.y)
+
+            for move_x, move_y in possible_moves:
+                dist_after_move = abs(target_corpse.x - move_x) + abs(target_corpse.y - move_y)
+                score = current_dist_to_corpse - dist_after_move
+                scored_moves.append((score, (move_x, move_y)))
+
+            if scored_moves:
+                scored_moves.sort(key=lambda x: x[0], reverse=True)
+                if scored_moves[0][0] > 0:
+                    best_move_coords = scored_moves[0][1]
+                    dx = best_move_coords[0] - self.x
+                    dy = best_move_coords[1] - self.y
+                    if self.move(dx, dy, board):
+                        self.energy -= self.energy_cost_move_scavenge
+                        self.gain_experience("hunting", 0.2) # Keep original exp gain for scavenging move
+                    return
+
+        # 3. Fallback: Exploration
+        exploration_move = self._get_exploration_move()
+        if exploration_move:
+            explore_target_x, explore_target_y = exploration_move
+            if (explore_target_x, explore_target_y) in possible_moves:
+                dx = explore_target_x - self.x
+                dy = explore_target_y - self.y
+                if self.move(dx, dy, board):
                     self.energy -= self.energy_cost_move_scavenge
-                    self.gain_experience("hunting", 0.2)
+            elif possible_moves: # Try to move towards exploration target
+                scored_exploration_moves = []
+                current_dist_to_explore_target = abs(explore_target_x - self.x) + abs(explore_target_y - self.y)
+                for move_x, move_y in possible_moves:
+                    dist_after_move = abs(explore_target_x - move_x) + abs(explore_target_y - move_y)
+                    score = current_dist_to_explore_target - dist_after_move
+                    scored_exploration_moves.append((score, (move_x, move_y)))
+
+                if scored_exploration_moves:
+                    scored_exploration_moves.sort(key=lambda x: x[0], reverse=True)
+                    if scored_exploration_moves[0][0] >= 0:
+                        best_move_coords = scored_exploration_moves[0][1]
+                        dx = best_move_coords[0] - self.x
+                        dy = best_move_coords[1] - self.y
+                        if self.move(dx, dy, board):
+                            self.energy -= self.energy_cost_move_scavenge
+
 
     def _find_food(self, board):
-        """Find any food source when hungry."""
-        visible_objects_data = self.look(board)
-        food_sources = []
-        for item in visible_objects_data:
-            obj = item[0]
-            if (hasattr(obj, 'alive') and not obj.alive and hasattr(obj, 'decay_stage')) or isinstance(obj, Plant):
-                food_sources.append(obj)
+        """Find any food source when hungry (corpses or plants for Scavenger)."""
+        possible_moves, visible_objects = self.get_potential_moves_in_vision_range(board)
         
+        food_sources = [obj for obj, x, y in visible_objects if (not obj.alive and hasattr(obj, 'decay_stage')) or isinstance(obj, Plant)]
+
+        # 1. Immediate Action: Eat adjacent food
         if food_sources:
-            target = min(food_sources, key=lambda u: ((u.x - self.x if hasattr(u, 'x') else u.position.x - self.x)**2 +
-                                                      (u.y - self.y if hasattr(u, 'y') else u.position.y - self.y)**2)**0.5)
-            target_x = target.x if hasattr(target, 'x') else target.position.x
-            target_y = target.y if hasattr(target, 'y') else target.position.y
+            for food in food_sources:
+                food_x = food.x if not isinstance(food, Plant) else food.position.x
+                food_y = food.y if not isinstance(food, Plant) else food.position.y
+                if abs(food_x - self.x) <= 1 and abs(food_y - self.y) <= 1:
+                    if self.eat(food):
+                        self.gain_experience("feeding")
+                    return # Action taken
 
-            if abs(target_x - self.x) <= 1 and abs(target_y - self.y) <= 1:
-                self.eat(target)
-            else:
-                move_dx = 1 if target_x > self.x else (-1 if target_x < self.x else 0)
-                move_dy = 1 if target_y > self.y else (-1 if target_y < self.y else 0)
-                moved = self.move(move_dx, move_dy, board)
-                if not moved and (move_dx != 0 or move_dy != 0):
-                    if move_dx != 0:
-                        if self.move(move_dx, 0, board):
-                            moved = True
-                    if not moved and move_dy != 0:
-                        if self.move(0, move_dy, board):
-                            moved = True
+        # 2. Score moves to reach food
+        if food_sources and possible_moves:
+            target_food = min(food_sources, key=lambda f: abs((f.x if not isinstance(f, Plant) else f.position.x) - self.x) + \
+                                                         abs((f.y if not isinstance(f, Plant) else f.position.y) - self.y))
+            target_x = target_food.x if not isinstance(target_food, Plant) else target_food.position.x
+            target_y = target_food.y if not isinstance(target_food, Plant) else target_food.position.y
 
-                if moved:
+            scored_moves = []
+            current_dist_to_food = abs(target_x - self.x) + abs(target_y - self.y)
+
+            for move_x, move_y in possible_moves:
+                dist_after_move = abs(target_x - move_x) + abs(target_y - move_y)
+                score = current_dist_to_food - dist_after_move
+                scored_moves.append((score, (move_x, move_y)))
+
+            if scored_moves:
+                scored_moves.sort(key=lambda x: x[0], reverse=True)
+                if scored_moves[0][0] > 0:
+                    best_move_coords = scored_moves[0][1]
+                    dx = best_move_coords[0] - self.x
+                    dy = best_move_coords[1] - self.y
+                    if self.move(dx, dy, board):
+                        self.energy -= self.energy_cost_move_scavenge
+                    return
+
+        # 3. Fallback: Exploration
+        exploration_move = self._get_exploration_move()
+        if exploration_move:
+            explore_target_x, explore_target_y = exploration_move
+            if (explore_target_x, explore_target_y) in possible_moves:
+                dx = explore_target_x - self.x
+                dy = explore_target_y - self.y
+                if self.move(dx, dy, board):
                     self.energy -= self.energy_cost_move_scavenge
-        else:
-            # No food sources visible, perform an exploration move
-            explore_dx, explore_dy = self._get_exploration_move()
-            if explore_dx is not None and explore_dy is not None:
-                if self.move(explore_dx, explore_dy, board):
-                    self.energy -= self.energy_cost_move_scavenge
+            elif possible_moves:
+                scored_exploration_moves = []
+                current_dist_to_explore_target = abs(explore_target_x - self.x) + abs(explore_target_y - self.y)
+                for move_x, move_y in possible_moves:
+                    dist_after_move = abs(explore_target_x - move_x) + abs(explore_target_y - move_y)
+                    score = current_dist_to_explore_target - dist_after_move
+                    scored_exploration_moves.append((score, (move_x, move_y)))
+
+                if scored_exploration_moves:
+                    scored_exploration_moves.sort(key=lambda x: x[0], reverse=True)
+                    if scored_exploration_moves[0][0] >= 0:
+                        best_move_coords = scored_exploration_moves[0][1]
+                        dx = best_move_coords[0] - self.x
+                        dy = best_move_coords[1] - self.y
+                        if self.move(dx, dy, board):
+                            self.energy -= self.energy_cost_move_scavenge
+
 
     def _flee_from_threats(self, board):
         """Scavenger flees from Predators."""
-        visible_units = self.look(board)
-        threats = [item[0] for item in visible_units if isinstance(item[0], Predator) and item[0].alive]
+        possible_moves, visible_objects = self.get_potential_moves_in_vision_range(board)
         
-        if threats:
-            threat = min(threats, key=lambda u: ((u.x - self.x)**2 + (u.y - self.y)**2)**0.5)
-            flee_dx = 0
-            if self.x < threat.x: flee_dx = -1
-            elif self.x > threat.x: flee_dx = 1
-            flee_dy = 0
-            if self.y < threat.y: flee_dy = -1
-            elif self.y > threat.y: flee_dy = 1
+        threats = [obj for obj, x, y in visible_objects if isinstance(obj, Predator) and obj.alive] # Scavenger flees any live Predator
 
-            if flee_dx == 0 and flee_dy == 0:
-                 flee_dx = random.choice([-1,1]) if board.is_valid_position(self.x-1, self.y) or board.is_valid_position(self.x+1, self.y) else 0
-                 flee_dy = random.choice([-1,1]) if board.is_valid_position(self.x, self.y-1) or board.is_valid_position(self.x, self.y+1) else 0
-                 if flee_dx == 0 and flee_dy == 0:
-                     available = board.get_available_moves(self.x, self.y)
-                     if available:
-                         panic_pos = random.choice(available)
-                         flee_dx = panic_pos.x - self.x
-                         flee_dy = panic_pos.y - self.y
+        if not threats:
+            return
 
-            moved = self.move(flee_dx, flee_dy, board)
-            if not moved and (flee_dx != 0 or flee_dy != 0):
-                if flee_dx != 0 and self.move(flee_dx, 0, board): moved = True
-                elif flee_dy != 0 and self.move(0, flee_dy, board): moved = True
+        if not possible_moves:
+            return
+
+        closest_threat = min(threats, key=lambda t: abs(t.x - self.x) + abs(t.y - self.y))
+        scored_moves = []
+        current_dist_to_threat = abs(closest_threat.x - self.x) + abs(closest_threat.y - self.y)
+
+        for move_x, move_y in possible_moves:
+            dist_after_move = abs(closest_threat.x - move_x) + abs(closest_threat.y - move_y)
+            score = dist_after_move - current_dist_to_threat
+            scored_moves.append((score, (move_x, move_y)))
             
-            if moved:
-                self.energy -= self.energy_cost_move_flee
-                self.gain_experience("fleeing")
+        if scored_moves:
+            scored_moves.sort(key=lambda x: x[0], reverse=True)
+            if scored_moves[0][0] >= 0 : # Prioritize moves that increase or maintain distance
+                best_move_coords = scored_moves[0][1]
+                dx = best_move_coords[0] - self.x
+                dy = best_move_coords[1] - self.y
+                if self.move(dx, dy, board):
+                    self.energy -= self.energy_cost_move_flee
+                    self.gain_experience("fleeing")
+            else: # All moves lead closer, pick the one that leads "least closer" or a random one
+                # Fallback to random valid move if all scores are negative (truly cornered)
+                # For now, using the "least bad" move.
+                best_move_coords = scored_moves[0][1] # Best of the bad options
+                dx = best_move_coords[0] - self.x
+                dy = best_move_coords[1] - self.y
+                if self.move(dx, dy, board):
+                    self.energy -= self.energy_cost_move_flee
+                    self.gain_experience("fleeing")
+        # If no scored_moves (e.g. possible_moves was empty), do nothing.
 
 class Grazer(Unit):
     """
@@ -313,111 +463,148 @@ class Grazer(Unit):
             
     def update(self, board):
         super().update(board)
-        if not self.alive:
+        if not self.alive or self.state == "resting": # Added resting check from Predator
             return
+
+        # Grazer's primary concern is threats. Get visible objects once.
+        # No, get_potential_moves_in_vision_range should be called by specific action methods
+        # because vision range might change based on state (e.g. hunting, fleeing)
+        # For Grazer, fleeing is top priority.
+
+        # Check for threats first.
+        # To do this efficiently, we need visible objects.
+        # We can call get_potential_moves_in_vision_range once here if vision doesn't change for fleeing vs grazing.
+        # Or, _flee_from_threats handles its own vision scan.
+        # Let's assume _flee_from_threats will get its own scan for now.
         
-        visible_units_data = self.look(board) # Use self.look()
-        threats = [item[0] for item in visible_units_data if isinstance(item[0], Predator) and item[0].alive]
-        
-        if threats:
+        # The original Grazer logic called self.look() then decided state.
+        # We need to adapt this. Let's get visible objects once for state decisions.
+        _, visible_objects_for_state_decision = self.get_potential_moves_in_vision_range(board)
+        threats_for_state_decision = [obj for obj, x, y in visible_objects_for_state_decision if isinstance(obj, Predator) and obj.alive]
+
+        if threats_for_state_decision:
             self.state = "fleeing"
-            self._flee_from_threats(board, threats) # Pass threats to avoid re-calculating
-        elif self.energy < self.max_energy * 0.4: # Adjusted threshold for consistency
-            self.state = "hungry"
-            self._find_food(board)
+            self._flee_from_threats(board, threats_for_state_decision) # Pass identified threats
+        elif self.energy < self.max_energy * 0.4:
+            self.state = "hungry" # Or searching_food
+            self._find_food(board) # This method will find plants
         else:
-            self.state = "grazing" # Default state if not fleeing or hungry
-            self._graze(board)
+            self.state = "grazing"
+            self._graze(board) # This method will find plants
 
-    def _graze(self, board):
+
+    def _graze(self, board): # Similar to _find_food but for non-hungry state
         """Wander to find and consume plants."""
-        visible_plants_data = self.look(board)
-        plants = [item[0] for item in visible_plants_data if isinstance(item[0], Plant)]
+        possible_moves, visible_objects = self.get_potential_moves_in_vision_range(board)
 
+        plants = [obj for obj, x, y in visible_objects if isinstance(obj, Plant) and obj.state.is_alive and obj.state.energy_content > 0]
+
+        # 1. Immediate Action: Eat adjacent plant
         if plants:
-            target = min(plants, key=lambda p: ((p.position.x - self.x)**2 + (p.position.y - self.y)**2)**0.5)
-            if abs(target.position.x - self.x) <= 1 and abs(target.position.y - self.y) <= 1:
-                if self.eat(target):
-                    self.gain_experience("feeding")
-            else:
-                move_dx = 1 if target.position.x > self.x else (-1 if target.position.x < self.x else 0)
-                move_dy = 1 if target.position.y > self.y else (-1 if target.position.y < self.y else 0)
-                moved = self.move(move_dx, move_dy, board)
-                if not moved and (move_dx != 0 or move_dy != 0):
-                    if move_dx != 0 and self.move(move_dx, 0, board):
-                        moved = True
-                    elif move_dy != 0 and self.move(0, move_dy, board):
-                        moved = True
-                if moved:
-                    self.energy -= self.energy_cost_move_graze
-                    self.gain_experience("feeding", 0.2)
-        else:
-            explore_dx, explore_dy = self._get_exploration_move()
-            if explore_dx is not None and explore_dy is not None:
-                if self.move(explore_dx, explore_dy, board):
-                    self.energy -= self.energy_cost_move_graze
+            for plant in plants:
+                if abs(plant.position.x - self.x) <= 1 and abs(plant.position.y - self.y) <= 1:
+                    if self.eat(plant):
+                        self.gain_experience("feeding")
+                    return # Action taken
 
-    def _find_food(self, board):
+        # 2. Score moves to reach plants
+        if plants and possible_moves:
+            target_plant = min(plants, key=lambda p: abs(p.position.x - self.x) + abs(p.position.y - self.y))
+            scored_moves = []
+            current_dist_to_plant = abs(target_plant.position.x - self.x) + abs(target_plant.position.y - self.y)
+
+            for move_x, move_y in possible_moves:
+                dist_after_move = abs(target_plant.position.x - move_x) + abs(target_plant.position.y - move_y)
+                score = current_dist_to_plant - dist_after_move
+                scored_moves.append((score, (move_x, move_y)))
+
+            if scored_moves:
+                scored_moves.sort(key=lambda x: x[0], reverse=True)
+                if scored_moves[0][0] > 0:
+                    best_move_coords = scored_moves[0][1]
+                    dx = best_move_coords[0] - self.x
+                    dy = best_move_coords[1] - self.y
+                    if self.move(dx, dy, board):
+                        self.energy -= self.energy_cost_move_graze
+                        self.gain_experience("feeding", 0.2) # Original exp for moving to graze
+                    return
+
+        # 3. Fallback: Exploration
+        exploration_move = self._get_exploration_move()
+        if exploration_move:
+            explore_target_x, explore_target_y = exploration_move
+            if (explore_target_x, explore_target_y) in possible_moves:
+                dx = explore_target_x - self.x
+                dy = explore_target_y - self.y
+                if self.move(dx, dy, board):
+                    self.energy -= self.energy_cost_move_graze
+            elif possible_moves:
+                scored_exploration_moves = []
+                current_dist_to_explore_target = abs(explore_target_x - self.x) + abs(explore_target_y - self.y)
+                for move_x, move_y in possible_moves:
+                    dist_after_move = abs(explore_target_x - move_x) + abs(explore_target_y - move_y)
+                    score = current_dist_to_explore_target - dist_after_move
+                    scored_exploration_moves.append((score, (move_x, move_y)))
+
+                if scored_exploration_moves:
+                    scored_exploration_moves.sort(key=lambda x: x[0], reverse=True)
+                    if scored_exploration_moves[0][0] >= 0:
+                        best_move_coords = scored_exploration_moves[0][1]
+                        dx = best_move_coords[0] - self.x
+                        dy = best_move_coords[1] - self.y
+                        if self.move(dx, dy, board):
+                            self.energy -= self.energy_cost_move_graze
+
+
+    def _find_food(self, board): # Specifically for when hungry
         """Find closest plant when hungry."""
-        visible_plants_data = self.look(board)
-        plants = [item[0] for item in visible_plants_data if isinstance(item[0], Plant)]
-        
-        if plants:
-            target = min(plants, key=lambda p: ((p.position.x - self.x)**2 + (p.position.y - self.y)**2)**0.5)
-            if abs(target.position.x - self.x) <= 1 and abs(target.position.y - self.y) <= 1:
-                if self.eat(target):
-                    self.gain_experience("feeding")
-            else:
-                move_dx = 1 if target.position.x > self.x else (-1 if target.position.x < self.x else 0)
-                move_dy = 1 if target.position.y > self.y else (-1 if target.position.y < self.y else 0)
-                moved = self.move(move_dx, move_dy, board)
-                if not moved and (move_dx != 0 or move_dy != 0):
-                    if move_dx != 0 and self.move(move_dx, 0, board):
-                        moved = True
-                    elif move_dy != 0 and self.move(0, move_dy, board):
-                        moved = True
+        # This is essentially the same logic as _graze for Grazer
+        self._graze(board)
 
-                if moved:
-                    self.energy -= self.energy_cost_move_graze
-        else:
-            # No plants visible, perform an exploration move
-            explore_dx, explore_dy = self._get_exploration_move()
-            if explore_dx is not None and explore_dy is not None:
-                if self.move(explore_dx, explore_dy, board):
-                    self.energy -= self.energy_cost_move_graze
 
-    def _flee_from_threats(self, board, threats): # Accept threats to avoid re-calculating
-        """Move away from predators."""
-        if threats: # threats is now passed in
-            threat = min(threats, key=lambda u: ((u.x - self.x)**2 + (u.y - self.y)**2)**0.5)
-            flee_dx = 0
-            if self.x < threat.x: flee_dx = -1
-            elif self.x > threat.x: flee_dx = 1
-            flee_dy = 0
-            if self.y < threat.y: flee_dy = -1
-            elif self.y > threat.y: flee_dy = 1
+    def _flee_from_threats(self, board, threats_identified_in_update):
+        """Move away from predators. Threats are passed from update() method."""
+        possible_moves, visible_objects = self.get_potential_moves_in_vision_range(board)
+
+        # Use threats passed from update method if available and still relevant,
+        # otherwise, can re-scan from visible_objects if needed (e.g. if state changed vision)
+        # For now, directly use threats_identified_in_update
+        threats = threats_identified_in_update
+
+        if not threats:
+             # As a fallback, if threats_identified_in_update is empty (e.g. called directly), re-scan
+            threats = [obj for obj, x, y in visible_objects if isinstance(obj, Predator) and obj.alive]
+            if not threats:
+                return # No threats to flee from
+
+        if not possible_moves:
+            return # Nowhere to flee
+
+        closest_threat = min(threats, key=lambda t: abs(t.x - self.x) + abs(t.y - self.y))
+        scored_moves = []
+        current_dist_to_threat = abs(closest_threat.x - self.x) + abs(closest_threat.y - self.y)
+
+        for move_x, move_y in possible_moves:
+            dist_after_move = abs(closest_threat.x - move_x) + abs(closest_threat.y - move_y)
+            score = dist_after_move - current_dist_to_threat
+            scored_moves.append((score, (move_x, move_y)))
             
-            if flee_dx == 0 and flee_dy == 0: # Fallback if on same spot or calculation error
-                 flee_dx = random.choice([-1,1]) if board.is_valid_position(self.x-1, self.y) or board.is_valid_position(self.x+1, self.y) else 0
-                 flee_dy = random.choice([-1,1]) if board.is_valid_position(self.x, self.y-1) or board.is_valid_position(self.x, self.y+1) else 0
-                 if flee_dx == 0 and flee_dy == 0:
-                     available = board.get_available_moves(self.x, self.y)
-                     if available:
-                         panic_pos = random.choice(available)
-                         flee_dx = panic_pos.x - self.x
-                         flee_dy = panic_pos.y - self.y
-            
-            moved = self.move(flee_dx, flee_dy, board)
-            if not moved and (flee_dx != 0 or flee_dy != 0):
-                if flee_dx != 0 and self.move(flee_dx, 0, board):
-                    moved = True
-                elif flee_dy != 0 and self.move(0, flee_dy, board): # Use elif to avoid second move if first cardinal succeeded
-                    moved = True
-            
-            if moved:
-                self.energy -= self.energy_cost_move_flee
-                self.gain_experience("fleeing")
-                pass
+        if scored_moves:
+            scored_moves.sort(key=lambda x: x[0], reverse=True)
+            if scored_moves[0][0] >= 0:
+                best_move_coords = scored_moves[0][1]
+                dx = best_move_coords[0] - self.x
+                dy = best_move_coords[1] - self.y
+                if self.move(dx, dy, board):
+                    self.energy -= self.energy_cost_move_flee
+                    self.gain_experience("fleeing")
+            else: # All moves are bad, pick the "least bad"
+                best_move_coords = scored_moves[0][1]
+                dx = best_move_coords[0] - self.x
+                dy = best_move_coords[1] - self.y
+                if self.move(dx, dy, board):
+                    self.energy -= self.energy_cost_move_flee
+                    self.gain_experience("fleeing")
 
 # Dictionary mapping unit type names to their classes
 UNIT_TYPES = {

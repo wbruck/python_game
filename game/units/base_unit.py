@@ -4,7 +4,7 @@ Base Unit module for the ecosystem simulation game.
 This module implements the base Unit class with fundamental RPG-style stats and behaviors.
 All other unit types will inherit from this base class.
 """
-
+from game.board import Position
 from game.plants.base_plant import Plant # Added import
 from typing import Optional, Tuple
 
@@ -229,6 +229,35 @@ class Unit:
         self.hp = self.max_hp
         self.energy = self.max_energy
 
+    def get_potential_moves_in_vision_range(self, board):
+        """
+        Calculates potential moves and identifies visible objects within vision range.
+
+        Args:
+            board (Board): The game board.
+
+        Returns:
+            tuple: A tuple containing:
+                - list_of_possible_moves (list): A list of (x, y) tuples representing immediately available moves.
+                - visible_objects (list): A list of (object, x, y) tuples for objects within vision range.
+        """
+        visible_positions = board.calculate_field_of_view(self.x, self.y, self.vision)
+        visible_objects = []
+        for pos in visible_positions:
+            obj = board.get_object(pos.x, pos.y)
+            if obj is not None and obj is not self:
+                visible_objects.append((obj, pos.x, pos.y))
+
+        available_next_moves = board.get_available_moves(self.x, self.y)
+        list_of_possible_moves = []
+        for pos in available_next_moves:
+            # Ensure moves are within unit's speed (for now, get_available_moves returns single-step moves)
+            # This check can be enhanced if get_available_moves changes or AI handles multi-step pathing.
+            if abs(pos.x - self.x) + abs(pos.y - self.y) <= self.speed:
+                 list_of_possible_moves.append((pos.x, pos.y))
+
+        return list_of_possible_moves, visible_objects
+
     def move(self, dx, dy, board):
         """
         Move the unit by the given delta if possible.
@@ -247,11 +276,9 @@ class Unit:
         new_x = self.x + dx
         new_y = self.y + dy
         
-        # Validate movement based on speed
-        if abs(dx) + abs(dy) > self.speed:
-            return False
-        
         # Check if movement is possible
+        # Note: The speed check (abs(dx) + abs(dy) > self.speed) has been removed
+        # as per requirements, to be handled by AI using get_potential_moves_in_vision_range.
         if not board.is_valid_position(new_x, new_y) or board.get_object(new_x, new_y) is not None:
             return False
         
