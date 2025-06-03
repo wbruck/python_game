@@ -48,7 +48,7 @@ def setup_game(config):
         while True:
             x = random.randint(0, board_width - 1)
             y = random.randint(0, board_height - 1)
-            unit = unit_class(x=x, y=y)
+            unit = unit_class(x=x, y=y, board=board)
             if board.place_object(unit, x, y):
                 game_loop.add_unit(unit)
                 return unit
