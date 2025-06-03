@@ -47,16 +47,21 @@ class Visualization:
                 "resting": c.RED + "r" + c.RESET,
                 "dead": c.RED + "x" + c.RESET,
                 "decaying": c.RED + "%" + c.RESET,
+                "hungry": c.RED + "H" + c.RESET,
+                "combat": c.RED + "C" + c.RESET,
             },
             "scavenger": {
-                "idle": c.YELLOW + "S" + c.RESET,
-                "hunting": c.YELLOW + c.BOLD + "S" + c.RESET,
-                "fleeing": c.YELLOW + "s" + c.RESET,
-                "feeding": c.YELLOW + "F" + c.RESET,
-                "wandering": c.YELLOW + "w" + c.RESET,
-                "resting": c.YELLOW + "r" + c.RESET,
-                "dead": c.YELLOW + "x" + c.RESET,
-                "decaying": c.YELLOW + "%" + c.RESET,
+                "idle": c.BLUE + "S" + c.RESET,
+                "hunting": c.BLUE + c.BOLD + "S" + c.RESET,
+                "fleeing": c.BLUE + "s" + c.RESET,
+                "feeding": c.BLUE + "F" + c.RESET,
+                "wandering": c.BLUE + "w" + c.RESET,
+                "resting": c.BLUE + "r" + c.RESET,
+                "dead": c.BLUE + "x" + c.RESET,
+                "decaying": c.BLUE + "%" + c.RESET,
+                "hungry": c.BLUE + "H" + c.RESET,
+                "scavenging": c.BLUE + "V" + c.RESET,
+                "combat": c.BLUE + "C" + c.RESET,
             },
             "grazer": {
                 "idle": c.GREEN + "G" + c.RESET,
@@ -67,6 +72,9 @@ class Visualization:
                 "resting": c.GREEN + "r" + c.RESET,
                 "dead": c.GREEN + "x" + c.RESET,
                 "decaying": c.GREEN + "%" + c.RESET,
+                "hungry": c.GREEN + "H" + c.RESET,
+                "grazing": c.GREEN + "Z" + c.RESET,
+                "combat": c.GREEN + "C" + c.RESET,
             }
         }
         
@@ -96,10 +104,25 @@ class Visualization:
     
     def _get_unit_symbol(self, unit: Unit) -> str:
         """Get the appropriate symbol for a unit based on its type and state."""
-        if hasattr(unit, "unit_type") and hasattr(unit, "state"):
-            unit_symbols = self.UNIT_SYMBOLS.get(unit.unit_type, {})
-            return unit_symbols.get(unit.state, Colors.WHITE + "?" + Colors.RESET)
-        return Colors.WHITE + "?" + Colors.RESET
+        if not hasattr(unit, "unit_type"):
+            print(f"WARNING: Unit at ({unit.x}, {unit.y}) has no unit_type!")
+            return Colors.WHITE + "?" + Colors.RESET
+            
+        if not hasattr(unit, "state"):
+            print(f"WARNING: {unit.unit_type} at ({unit.x}, {unit.y}) has no state!")
+            return Colors.WHITE + "?" + Colors.RESET
+            
+        unit_symbols = self.UNIT_SYMBOLS.get(unit.unit_type)
+        if unit_symbols is None:
+            print(f"WARNING: Unknown unit type '{unit.unit_type}' at ({unit.x}, {unit.y})")
+            return Colors.WHITE + "?" + Colors.RESET
+            
+        symbol = unit_symbols.get(unit.state)
+        if symbol is None:
+            print(f"WARNING: {unit.unit_type} at ({unit.x}, {unit.y}) has unknown state '{unit.state}'")
+            return Colors.WHITE + "?" + Colors.RESET
+            
+        return symbol
     
     def _get_plant_symbol(self, plant: Plant) -> str:
         """Get the appropriate symbol for a plant based on its state."""
@@ -166,6 +189,56 @@ class Visualization:
             f"C:{stats['plants']['consumed']})"
         )
     
+    def _format_legend(self) -> str:
+        """Format the legend showing what each symbol means."""
+        c = Colors
+        legend = "\nLegend:\n"
+        
+        # Get all possible states across all unit types
+        all_states = set()
+        for states in self.UNIT_SYMBOLS.values():
+            all_states.update(states.keys())
+        all_states = sorted(all_states)  # Sort for consistent order
+        
+        # Helper function to get visible length of string (ignoring ANSI codes)
+        def visible_length(s):
+            return len(s.replace(c.RESET, "").replace(c.RED, "").replace(c.BLUE, "")
+                      .replace(c.GREEN, "").replace(c.BOLD, ""))
+        
+        # Helper function to abbreviate state names
+        def abbreviate_state(state):
+            return state[:5].ljust(5)
+        
+        # Calculate column widths
+        type_width = 12
+        state_width = 5  # Reduced to match the abbreviated state width
+        
+        # Create header
+        legend += "Unit Type".ljust(type_width) + " │ "
+        for state in all_states:
+            legend += abbreviate_state(state) + " │ "
+        legend += "\n" + "─" * (type_width + 2) + "┼" + "─" * (len(all_states) * (state_width + 3) - 1) + "\n"
+        
+        # Create rows for each unit type
+        for unit_type, states in self.UNIT_SYMBOLS.items():
+            legend += unit_type.title().ljust(type_width) + " │ "
+            for state in all_states:
+                symbol = states.get(state, " ")
+                # Calculate padding needed after the symbol
+                padding = state_width - visible_length(symbol)
+                legend += symbol + " " * padding + " │ "
+            legend += "\n"
+        
+        # Add plant section
+        legend += "\nPlants:\n"
+        plant_width = 12
+        legend += "State".ljust(plant_width) + " │ Symbol\n"
+        legend += "─" * (plant_width + 2) + "┼" + "─" * 8 + "\n"
+        for state, symbol in self.PLANT_SYMBOLS.items():
+            legend += state.ljust(plant_width) + " │ " + symbol + "\n"
+        
+        return legend
+    
     def render(self) -> None:
         """
         Render the current game state to the terminal if visualization is enabled.
@@ -199,7 +272,9 @@ class Visualization:
         
         # Draw board border
         print("+" + "-" * (self.board.width * 2 - 1) + "+")
-        print()
+        
+        # Print legend
+        print(self._format_legend())
         
         self.frame_count += 1
     
