@@ -8,7 +8,7 @@
         "max_turns": 500,
         "turn_delay": 0.2,
         "visualization_update_frequency": 1,
-        "unit_stats_print_frequency": 5
+        "unit_stats_print_frequency": 15
     },
     "units": {
         "initial_count": {

@@ -104,10 +104,25 @@ def display_game(game_loop):
 def print_unit_stats(game_loop, current_turn):
     """Prints statistics for each unit."""
     print(f"--- Unit Stats (Turn {current_turn}) ---")
-    for unit in game_loop.units:
-        print(f"  - Type: {unit.unit_type}, Pos: ({unit.position.x}, {unit.position.y}), "
-              f"Energy: {unit.energy}, State: {unit.state}, Alive: {unit.alive}")
-    print(f"--- End Unit Stats ---")
+    
+    # First print alive units
+    alive_units = [unit for unit in game_loop.units if unit.alive]
+    if alive_units:
+        print("\nAlive Units:")
+        for unit in alive_units:
+            print(f"  - Type: {unit.unit_type}, Pos: ({unit.x}, {unit.y}), "
+                  f"Energy: {unit.energy}, State: {unit.state}")
+    
+    # Then print dead units
+    dead_units = [unit for unit in game_loop.units if not unit.alive]
+    if dead_units:
+        print("\nDead Units:")
+        for unit in dead_units:
+            print(f"  - Type: {unit.unit_type}, Pos: ({unit.x}, {unit.y}), "
+                  f"State: {unit.state}")
+    
+    print(f"\n--- End Unit Stats ---")
+    input("Press Enter to continue...")
 
 def main():
     """Main function to run the game."""

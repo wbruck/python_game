@@ -299,9 +299,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // Add class for general type (unit/plant) and specific name (e.g., Predator, BasicPlant)
                     cellDiv.classList.add(entity.type.toLowerCase()); // "unit" or "plant"
                     if (entity.name) {
-i
                         // Normalize name for CSS class: lowercase, remove spaces
-
                         cellDiv.classList.add(entity.name.toLowerCase().replace(/\s+/g, ''));
                     }
 

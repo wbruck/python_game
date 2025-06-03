@@ -67,6 +67,9 @@ class Unit:
         """
         self.config = config  # Store the config object
 
+        # Store unit type
+        self.unit_type = unit_type
+
         # Load energy costs from config or use defaults
         if config:
             self.energy_cost_move = config.get("units", "energy_consumption.move")
