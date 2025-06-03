@@ -39,6 +39,9 @@ class Predator(Unit):
             # Fallback for flee cost, potentially higher than normal move
             self.energy_cost_move_flee = self.energy_cost_move + 1
 
+        self.exploration_moves = [(0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (-1, -1), (1, -1), (-1, 1)]
+        self.next_exploration_move_index = 0
+
     def update(self, board):
         """
         Update the predator's state based on its surroundings.
@@ -130,6 +133,12 @@ class Predator(Unit):
                     # Foraging for food when hungry might use the base move cost or a specific graze/scavenge cost
                     # For Predator, it's likely still a general move or a less intensive hunt move
                     self.energy -= self.energy_cost_move
+        else:
+            # No dead units visible, perform an exploration move
+            explore_dx, explore_dy = self.exploration_moves[self.next_exploration_move_index]
+            self.next_exploration_move_index = (self.next_exploration_move_index + 1) % len(self.exploration_moves)
+            if self.move(explore_dx, explore_dy, board):
+                self.energy -= self.energy_cost_move # Use general move cost for exploration
 
     def _flee_from_threats(self, board):
         """Predator flees from other (presumably stronger) Predators."""
@@ -181,6 +190,9 @@ class Scavenger(Unit):
             self.energy_cost_move_scavenge = self.energy_cost_move
         if not hasattr(self, 'energy_cost_move_flee') or self.energy_cost_move_flee is None:
             self.energy_cost_move_flee = self.energy_cost_move + 1
+
+        self.exploration_moves = [(0, 1), (1, 0), (0, -1), (-1, 0), (1, 1), (-1, -1), (1, -1), (-1, 1)]
+        self.next_exploration_move_index = 0
 
     def update(self, board):
         super().update(board)
@@ -251,7 +263,14 @@ class Scavenger(Unit):
                             moved = True
 
                 if moved:
-                    self.energy -= self.energy_cost_move_scavenge # Or general self.energy_cost_move if hungry foraging is different
+                    self.energy -= self.energy_cost_move_scavenge
+        else:
+            # No food sources visible, perform an exploration move
+            explore_dx, explore_dy = self.exploration_moves[self.next_exploration_move_index]
+            self.next_exploration_move_index = (self.next_exploration_move_index + 1) % len(self.exploration_moves)
+            if self.move(explore_dx, explore_dy, board):
+                # energy_cost_move_scavenge has a fallback to energy_cost_move in __init__
+                self.energy -= self.energy_cost_move_scavenge
 
     def _flee_from_threats(self, board):
         """Scavenger flees from Predators."""
@@ -373,7 +392,12 @@ class Grazer(Unit):
 
                 if moved:
                     self.energy -= self.energy_cost_move_graze # Use graze cost when actively finding food
-        # No random move here, default to wandering/grazing if no specific food found by this targeted method
+        else:
+            # No plants visible, perform an exploration move
+            explore_dx, explore_dy = self.exploration_moves[self.next_exploration_move_index]
+            self.next_exploration_move_index = (self.next_exploration_move_index + 1) % len(self.exploration_moves)
+            if self.move(explore_dx, explore_dy, board):
+                self.energy -= self.energy_cost_move_graze # Use graze cost for exploration
 
     def _flee_from_threats(self, board, threats): # Accept threats to avoid re-calculating
         """Move away from predators."""
