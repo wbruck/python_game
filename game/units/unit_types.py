@@ -276,7 +276,8 @@ class Scavenger(Unit):
         """Search for dead units to consume."""
         possible_moves, visible_objects = self.get_potential_moves_in_vision_range(board)
         
-        corpses = [obj for obj, x, y in visible_objects if not obj.alive and hasattr(obj, 'decay_stage') and obj.decay_stage < 4]
+        # Ensure we only check .alive on Unit instances
+        corpses = [obj for obj, x, y in visible_objects if isinstance(obj, Unit) and not obj.alive and hasattr(obj, 'decay_stage') and obj.decay_stage < 4]
 
         # 1. Immediate Action: Eat adjacent corpse
         if corpses:
@@ -338,8 +339,13 @@ class Scavenger(Unit):
     def _find_food(self, board):
         """Find any food source when hungry (corpses or plants for Scavenger)."""
         possible_moves, visible_objects = self.get_potential_moves_in_vision_range(board)
-        
-        food_sources = [obj for obj, x, y in visible_objects if (not obj.alive and hasattr(obj, 'decay_stage')) or isinstance(obj, Plant)]
+
+        food_sources = []
+        for obj, x, y in visible_objects:
+            if isinstance(obj, Unit) and not obj.alive and hasattr(obj, 'decay_stage'):
+                food_sources.append(obj)
+            elif isinstance(obj, Plant):
+                food_sources.append(obj)
 
         # 1. Immediate Action: Eat adjacent food
         if food_sources:
@@ -406,7 +412,7 @@ class Scavenger(Unit):
     def _flee_from_threats(self, board):
         """Scavenger flees from Predators."""
         possible_moves, visible_objects = self.get_potential_moves_in_vision_range(board)
-        
+
         threats = [obj for obj, x, y in visible_objects if isinstance(obj, Predator) and obj.alive] # Scavenger flees any live Predator
 
         if not threats:

@@ -16,6 +16,7 @@ from game.units.unit_types import Predator, Scavenger, Grazer
 from game.plants.plant_types import BasicPlant # Import BasicPlant
 from game.visualization import Visualization
 # Removed: from web_server import set_game_board
+import sys # Import sys for isatty()
 
 def parse_args():
     """Parse command line arguments."""
@@ -122,7 +123,10 @@ def print_unit_stats(game_loop, current_turn):
                   f"State: {unit.state}")
     
     print(f"\n--- End Unit Stats ---")
-    input("Press Enter to continue...")
+    if sys.stdin.isatty(): # Check if running in an interactive terminal
+        input("Press Enter to continue...")
+    else:
+        print("Non-interactive mode, continuing without pause...")
 
 def main():
     """Main function to run the game."""
