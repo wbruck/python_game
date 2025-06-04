@@ -4,6 +4,7 @@ Base Unit module for the ecosystem simulation game.
 This module implements the base Unit class with fundamental RPG-style stats and behaviors.
 All other unit types will inherit from this base class.
 """
+import random # Added import
 from game.board import Position
 from game.plants.base_plant import Plant # Added import
 from typing import Optional, Tuple
@@ -12,21 +13,21 @@ from typing import Optional, Tuple
 UNIT_TEMPLATES = {
     "predator": {
         "hp": 120,
-        "energy": 80,
+        "energy": 60,
         "strength": 15,
         "speed": 2,
         "vision": 6
     },
     "scavenger": {
         "hp": 100,
-        "energy": 110,
+        "energy": 80,
         "strength": 8,
         "speed": 1,
         "vision": 8
     },
     "grazer": {
         "hp": 90,
-        "energy": 130,
+        "energy": 100,
         "strength": 5,
         "speed": 1,
         "vision": 5
@@ -580,5 +581,13 @@ class Unit:
                 self.exploration_direction = direction
                 self.exploration_distance = 0
                 return (alt_x, alt_y)
+
+        # Fallback: If no strategic move is found, try any valid adjacent move randomly
+        available_moves = self.board.get_available_moves(self.x, self.y)
+        if available_moves:
+            # Convert Position objects to (x, y) tuples
+            valid_moves_tuples = [(pos.x, pos.y) for pos in available_moves]
+            if valid_moves_tuples:
+                 return random.choice(valid_moves_tuples)
                 
         return None
