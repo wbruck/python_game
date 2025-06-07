@@ -14,8 +14,10 @@ from game.game_loop import GameLoop
 from game.config import Config
 from game.units.unit_types import Predator, Scavenger, Grazer
 from game.plants.plant_types import BasicPlant # Import BasicPlant
+from game.plants.plant_manager import PlantManager
 from game.visualization import Visualization
 # Removed: from web_server import set_game_board
+import sys # Import sys for isatty()
 
 def parse_args():
     """Parse command line arguments."""
@@ -48,7 +50,7 @@ def setup_game(config):
         while True:
             x = random.randint(0, board_width - 1)
             y = random.randint(0, board_height - 1)
-            unit = unit_class(x=x, y=y)
+            unit = unit_class(x=x, y=y, board=board)
             if board.place_object(unit, x, y):
                 game_loop.add_unit(unit)
                 return unit
@@ -64,28 +66,16 @@ def setup_game(config):
     for _ in range(unit_counts.get("grazer", 0)):
         place_unit_randomly(Grazer)
     
-    # Place initial plants
-    num_plants = config.get("plants", "initial_count")
+    # Initialize plant manager and generate initial plants
+    plant_manager = PlantManager(board, config.config)
+    plant_manager.generate_initial_plants()
     
-    # Define a simple plant factory. BasePlant requires a position.
-    # place_random_plants will handle the actual random position.
-    # The board's place_object method updates its internal tracking
-    # but does not update the plant's own `position` attribute if it's a complex object.
-    # This is a known limitation for now.
-    def plant_factory():
-        # BasicPlant(position, base_energy, growth_rate, regrowth_time)
-        # Using default values from BasicPlant or arbitrary valid ones for now.
-        # The key is that `place_random_plants` needs a callable that returns a plant instance.
-        # The position passed here is a placeholder.
-        return BasicPlant(position=Position(0,0))
-
-    placed_plant_positions = board.place_random_plants(num_plants, plant_factory)
-
-    # Add placed plants to the game loop
-    for pos in placed_plant_positions:
-        plant_object = board.get_object(pos.x, pos.y)
-        if plant_object: # Ensure a plant was actually placed and retrieved
-            game_loop.add_plant(plant_object)
+    # Add plants to game loop
+    for plant in plant_manager.plants.values():
+        game_loop.add_plant(plant)
+        
+    # Store plant manager reference in game loop for updates
+    game_loop.plant_manager = plant_manager
 
     visualizer = Visualization(board)
     return game_loop, visualizer
@@ -104,10 +94,28 @@ def display_game(game_loop):
 def print_unit_stats(game_loop, current_turn):
     """Prints statistics for each unit."""
     print(f"--- Unit Stats (Turn {current_turn}) ---")
-    for unit in game_loop.units:
-        print(f"  - Type: {unit.unit_type}, Pos: ({unit.position.x}, {unit.position.y}), "
-              f"Energy: {unit.energy}, State: {unit.state}, Alive: {unit.alive}")
-    print(f"--- End Unit Stats ---")
+    
+    # First print alive units
+    alive_units = [unit for unit in game_loop.units if unit.alive]
+    if alive_units:
+        print("\nAlive Units:")
+        for unit in alive_units:
+            print(f"  - Type: {unit.unit_type}, Pos: ({unit.x}, {unit.y}), "
+                  f"Energy: {unit.energy}, State: {unit.state}")
+    
+    # Then print dead units
+    dead_units = [unit for unit in game_loop.units if not unit.alive]
+    if dead_units:
+        print("\nDead Units:")
+        for unit in dead_units:
+            print(f"  - Type: {unit.unit_type}, Pos: ({unit.x}, {unit.y}), "
+                  f"State: {unit.state}")
+    
+    print(f"\n--- End Unit Stats ---")
+    if sys.stdin.isatty(): # Check if running in an interactive terminal
+        input("Press Enter to continue...")
+    else:
+        print("Non-interactive mode, continuing without pause...")
 
 def main():
     """Main function to run the game."""

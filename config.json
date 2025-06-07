@@ -1,20 +1,20 @@
 {
     "board": {
-        "width": 30,
-        "height": 25,
+        "width": 10,
+        "height": 10,
         "allow_diagonal_movement": true
     },
     "game": {
         "max_turns": 500,
         "turn_delay": 0.2,
         "visualization_update_frequency": 1,
-        "unit_stats_print_frequency": 5
+        "unit_stats_print_frequency": 15
     },
     "units": {
         "initial_count": {
-            "predator": 5,
-            "scavenger": 8,
-            "grazer": 12
+            "predator": 3,
+            "scavenger": 3,
+            "grazer": 10
         },
         "energy_consumption": {
             "move": 1,
@@ -27,7 +27,7 @@
         "decay_rate": 0.15
     },
     "plants": {
-        "initial_count": 25,
+        "initial_count": 8,
         "growth_rate": 0.08,
         "max_count": 50
     },
