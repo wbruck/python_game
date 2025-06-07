@@ -526,4 +526,3 @@ def test_decay_mechanics(config_defaults): # Added config_defaults
 #             return default
 #     return MockConfig()
 
-```

@@ -296,7 +296,11 @@ class Unit:
         # Unit should not move if energy is less than or equal to the cost,
         # meaning the move would leave it with 0 or negative energy.
         # The test `test_movement_mechanics` expects this behavior.
-        if self.energy < current_move_cost: # Modified from < to <=
+        
+        # For non-critical states, maintain a small energy reserve (only when energy is higher)
+        # This prevents units from becoming completely drained but allows movement when needed
+        min_energy_reserve = 1 if (self.state not in ["fleeing", "hungry"] and self.energy > current_move_cost + 1) else 0
+        if self.energy < current_move_cost + min_energy_reserve:
             return False
             
         # Check if movement is possible
@@ -582,3 +586,26 @@ class Unit:
                 return (alt_x, alt_y)
                 
         return None
+    
+    def _explore_territory(self, board):
+        """Explore territory by moving in the current exploration direction."""
+        possible_moves, _ = self.get_potential_moves_in_vision_range(board)
+        
+        if not possible_moves:
+            # Completely blocked - try to rest or wait
+            self.state = "resting"
+            return
+            
+        exploration_move = self._get_exploration_move()
+        if exploration_move and exploration_move in possible_moves:
+            dx = exploration_move[0] - self.x
+            dy = exploration_move[1] - self.y
+            if self.move(dx, dy, board):
+                self.energy -= self.energy_cost_move
+        elif possible_moves:
+            # If planned exploration move isn't possible, try any available move
+            move_x, move_y = possible_moves[0]
+            dx = move_x - self.x
+            dy = move_y - self.y
+            if self.move(dx, dy, board):
+                self.energy -= self.energy_cost_move

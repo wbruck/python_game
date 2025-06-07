@@ -49,9 +49,11 @@ class Predator(Unit):
         if not self.alive or self.state == "resting":
             return
 
+        # Allow wandering units to explore when healthy
         if self.state == "wandering" and \
            not (self.energy <= self.max_energy * 0.2) and \
            not (self.hp < self.max_hp * 0.3):
+            self._explore_territory(board)
             return
 
         if self.energy <= self.max_energy * 0.2:
@@ -204,10 +206,15 @@ class Predator(Unit):
         threats = [obj for obj, x, y in visible_objects if isinstance(obj, Predator) and obj != self and obj.alive]
 
         if not threats:
-            return # No threats to flee from
+            # No threats visible, transition to wandering and explore
+            self.state = "wandering"
+            self._explore_territory(board)
+            return
 
         if not possible_moves:
-            return # Nowhere to flee
+            # Completely blocked - transition to resting
+            self.state = "resting"
+            return
 
         closest_threat = min(threats, key=lambda t: abs(t.x - self.x) + abs(t.y - self.y))
         scored_moves = []
@@ -416,6 +423,9 @@ class Scavenger(Unit):
         threats = [obj for obj, x, y in visible_objects if isinstance(obj, Predator) and obj.alive] # Scavenger flees any live Predator
 
         if not threats:
+            # No threats visible, transition to wandering and explore
+            self.state = "wandering"
+            self._explore_territory(board)
             return
 
         if not possible_moves:
@@ -581,10 +591,15 @@ class Grazer(Unit):
              # As a fallback, if threats_identified_in_update is empty (e.g. called directly), re-scan
             threats = [obj for obj, x, y in visible_objects if isinstance(obj, Predator) and obj.alive]
             if not threats:
-                return # No threats to flee from
+                # No threats visible, transition to wandering and explore
+                self.state = "wandering"
+                self._explore_territory(board)
+                return
 
         if not possible_moves:
-            return # Nowhere to flee
+            # Completely blocked - transition to resting
+            self.state = "resting"
+            return
 
         closest_threat = min(threats, key=lambda t: abs(t.x - self.x) + abs(t.y - self.y))
         scored_moves = []
