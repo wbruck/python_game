@@ -139,8 +139,8 @@ class GameLoop:
                 if hasattr(unit, 'state') and unit.state != "resting":
                     energy_cost_modifier = 1.5 if self.time_of_day == TimeOfDay.NIGHT else 1.0
                     if hasattr(unit, 'energy'): # Check if unit has energy attribute
-                        # Assuming a base passive energy cost of 1 per turn for living units
-                        unit.energy = max(0, unit.energy - (1 * energy_cost_modifier))
+                        # Assuming a base passive energy cost of 2 per turn for living units
+                        unit.energy = max(0, unit.energy - (2 * energy_cost_modifier))
         
         # 6. Update plants
         growth_modifiers = {

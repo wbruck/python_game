@@ -16,6 +16,7 @@ from game.units.unit_types import Predator, Scavenger, Grazer
 from game.plants.plant_types import BasicPlant # Import BasicPlant
 from game.visualization import Visualization
 # Removed: from web_server import set_game_board
+import sys # Import sys for isatty()
 
 def parse_args():
     """Parse command line arguments."""
@@ -48,7 +49,7 @@ def setup_game(config):
         while True:
             x = random.randint(0, board_width - 1)
             y = random.randint(0, board_height - 1)
-            unit = unit_class(x=x, y=y)
+            unit = unit_class(x=x, y=y, board=board)
             if board.place_object(unit, x, y):
                 game_loop.add_unit(unit)
                 return unit
@@ -104,10 +105,28 @@ def display_game(game_loop):
 def print_unit_stats(game_loop, current_turn):
     """Prints statistics for each unit."""
     print(f"--- Unit Stats (Turn {current_turn}) ---")
-    for unit in game_loop.units:
-        print(f"  - Type: {unit.unit_type}, Pos: ({unit.position.x}, {unit.position.y}), "
-              f"Energy: {unit.energy}, State: {unit.state}, Alive: {unit.alive}")
-    print(f"--- End Unit Stats ---")
+    
+    # First print alive units
+    alive_units = [unit for unit in game_loop.units if unit.alive]
+    if alive_units:
+        print("\nAlive Units:")
+        for unit in alive_units:
+            print(f"  - Type: {unit.unit_type}, Pos: ({unit.x}, {unit.y}), "
+                  f"Energy: {unit.energy}, State: {unit.state}")
+    
+    # Then print dead units
+    dead_units = [unit for unit in game_loop.units if not unit.alive]
+    if dead_units:
+        print("\nDead Units:")
+        for unit in dead_units:
+            print(f"  - Type: {unit.unit_type}, Pos: ({unit.x}, {unit.y}), "
+                  f"State: {unit.state}")
+    
+    print(f"\n--- End Unit Stats ---")
+    if sys.stdin.isatty(): # Check if running in an interactive terminal
+        input("Press Enter to continue...")
+    else:
+        print("Non-interactive mode, continuing without pause...")
 
 def main():
     """Main function to run the game."""

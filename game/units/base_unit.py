@@ -4,28 +4,30 @@ Base Unit module for the ecosystem simulation game.
 This module implements the base Unit class with fundamental RPG-style stats and behaviors.
 All other unit types will inherit from this base class.
 """
-
+import random # Added import
+from game.board import Position
 from game.plants.base_plant import Plant # Added import
+from typing import Optional, Tuple
 
 # Predefined unit templates for different roles
 UNIT_TEMPLATES = {
     "predator": {
         "hp": 120,
-        "energy": 80,
+        "energy": 60,
         "strength": 15,
         "speed": 2,
         "vision": 6
     },
     "scavenger": {
         "hp": 100,
-        "energy": 110,
+        "energy": 80,
         "strength": 8,
         "speed": 1,
         "vision": 8
     },
     "grazer": {
         "hp": 90,
-        "energy": 130,
+        "energy": 100,
         "strength": 5,
         "speed": 1,
         "vision": 5
@@ -51,7 +53,7 @@ class Unit:
     - decaying: Gradually losing energy content that can be consumed by others
     """
     
-    def __init__(self, x, y, unit_type=None, hp=100, energy=100, strength=10, speed=1, vision=5, config=None):
+    def __init__(self, x, y, unit_type=None, hp=100, energy=100, strength=10, speed=1, vision=5, config=None, board=None):
         """
         Initialize a new unit with the given attributes.
         
@@ -64,8 +66,13 @@ class Unit:
             speed (int): Affects movement range per turn.
             vision (int): How far the unit can see.
             config (Config, optional): Configuration object for accessing game settings.
+            board (Board): The game board this unit belongs to.
         """
         self.config = config  # Store the config object
+        self.board = board  # Store the board reference
+
+        # Store unit type
+        self.unit_type = unit_type
 
         # Load energy costs from config or use defaults
         if config:
@@ -131,6 +138,34 @@ class Unit:
             "hunting": 0     # Successfully tracked and found prey
         }
         
+        # Exploration properties
+        self.exploration_direction = (1, 0)  # Start moving right
+        self.exploration_distance = 0
+        self.board_height = board.height if board else None
+        self.quarter_height = (board.height // 4) if board else None
+        
+        # Set energy costs from config or use defaults
+        if config:
+            self.energy_cost_rest = config.get("units", "energy_consumption.rest")
+            self.energy_gain_eat = config.get("units", "energy_gain.eat")
+            self.hp_gain_eat = config.get("units", "hp_gain.eat")
+            self.decay_rate = config.get("units", "decay_rate")
+            self.decay_energy_gain = config.get("units", "decay_energy_gain")
+            self.decay_hp_gain = config.get("units", "decay_hp_gain")
+        
+        # Set defaults if config values are not available
+        if not hasattr(self, 'energy_cost_rest') or self.energy_cost_rest is None:
+            self.energy_cost_rest = -5  # Negative means energy gain
+        if not hasattr(self, 'energy_gain_eat') or self.energy_gain_eat is None:
+            self.energy_gain_eat = 20
+        if not hasattr(self, 'hp_gain_eat') or self.hp_gain_eat is None:
+            self.hp_gain_eat = 10
+        if not hasattr(self, 'decay_rate') or self.decay_rate is None:
+            self.decay_rate = 0.1
+        if not hasattr(self, 'decay_energy_gain') or self.decay_energy_gain is None:
+            self.decay_energy_gain = 5
+        if not hasattr(self, 'decay_hp_gain') or self.decay_hp_gain is None:
+            self.decay_hp_gain = 2
 
     def _consume(self, target) -> int:
         """
@@ -195,6 +230,35 @@ class Unit:
         self.hp = self.max_hp
         self.energy = self.max_energy
 
+    def get_potential_moves_in_vision_range(self, board):
+        """
+        Calculates potential moves and identifies visible objects within vision range.
+
+        Args:
+            board (Board): The game board.
+
+        Returns:
+            tuple: A tuple containing:
+                - list_of_possible_moves (list): A list of (x, y) tuples representing immediately available moves.
+                - visible_objects (list): A list of (object, x, y) tuples for objects within vision range.
+        """
+        visible_positions = board.calculate_field_of_view(self.x, self.y, self.vision)
+        visible_objects = []
+        for pos in visible_positions:
+            obj = board.get_object(pos.x, pos.y)
+            if obj is not None and obj is not self:
+                visible_objects.append((obj, pos.x, pos.y))
+
+        available_next_moves = board.get_available_moves(self.x, self.y)
+        list_of_possible_moves = []
+        for pos in available_next_moves:
+            # Ensure moves are within unit's speed (for now, get_available_moves returns single-step moves)
+            # This check can be enhanced if get_available_moves changes or AI handles multi-step pathing.
+            if abs(pos.x - self.x) + abs(pos.y - self.y) <= self.speed:
+                 list_of_possible_moves.append((pos.x, pos.y))
+
+        return list_of_possible_moves, visible_objects
+
     def move(self, dx, dy, board):
         """
         Move the unit by the given delta if possible.
@@ -213,11 +277,9 @@ class Unit:
         new_x = self.x + dx
         new_y = self.y + dy
         
-        # Validate movement based on speed
-        if abs(dx) + abs(dy) > self.speed:
-            return False
-        
         # Check if movement is possible
+        # Note: The speed check (abs(dx) + abs(dy) > self.speed) has been removed
+        # as per requirements, to be handled by AI using get_potential_moves_in_vision_range.
         if not board.is_valid_position(new_x, new_y) or board.get_object(new_x, new_y) is not None:
             return False
         
@@ -464,3 +526,68 @@ class Unit:
         Placeholder for future implementation.
         """
         pass
+
+    def set_board(self, board):
+        """Set the board reference and calculate quarter height."""
+        self.board = board
+        self.board_height = board.height
+        self.quarter_height = board.height // 4
+        
+    def _get_next_exploration_direction(self):
+        """Get the next exploration direction based on current position and board height."""
+        if self.board_height is None:
+            return (1, 0)  # Default to right if board not set
+            
+        # Calculate which quarter of the board we're in
+        current_quarter = (self.y // self.quarter_height) % 4
+        
+        # Define directions for each quarter (clockwise)
+        quarter_directions = [
+            (1, 0),   # Right
+            (0, 1),   # Down
+            (-1, 0),  # Left
+            (0, -1)   # Up
+        ]
+        
+        return quarter_directions[current_quarter]
+        
+    def _get_exploration_move(self) -> Optional[Tuple[int, int]]:
+        """Get the next exploration move based on the current direction and distance."""
+        if self.exploration_distance >= self.quarter_height:
+            # Time to change direction
+            self.exploration_direction = self._get_next_exploration_direction()
+            self.exploration_distance = 0
+            
+        # Calculate the next position
+        next_x = self.x + self.exploration_direction[0]
+        next_y = self.y + self.exploration_direction[1]
+        
+        # Check if the move is valid
+        if self.board.is_valid_position(next_x, next_y):
+            self.exploration_distance += 1
+            return (next_x, next_y)
+            
+        # If the move is invalid, try to find a valid alternative
+        # Try perpendicular directions first
+        perpendicular_directions = [
+            (self.exploration_direction[1], -self.exploration_direction[0]),  # 90 degrees
+            (-self.exploration_direction[1], self.exploration_direction[0])   # -90 degrees
+        ]
+        
+        for direction in perpendicular_directions:
+            alt_x = self.x + direction[0]
+            alt_y = self.y + direction[1]
+            if self.board.is_valid_position(alt_x, alt_y):
+                self.exploration_direction = direction
+                self.exploration_distance = 0
+                return (alt_x, alt_y)
+
+        # Fallback: If no strategic move is found, try any valid adjacent move randomly
+        available_moves = self.board.get_available_moves(self.x, self.y)
+        if available_moves:
+            # Convert Position objects to (x, y) tuples
+            valid_moves_tuples = [(pos.x, pos.y) for pos in available_moves]
+            if valid_moves_tuples:
+                 return random.choice(valid_moves_tuples)
+                
+        return None
