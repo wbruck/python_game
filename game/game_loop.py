@@ -166,6 +166,24 @@ class GameLoop:
             # Apply nighttime energy reduction
             if self.time_of_day == TimeOfDay.NIGHT and hasattr(plant, 'energy'):
                 plant.energy = max(plant.energy * 0.95, plant.min_energy if hasattr(plant, 'min_energy') else 0)
+        
+        # Update plant manager for new plant generation
+        if hasattr(self, 'plant_manager') and self.plant_manager:
+            # Apply seasonal growth modifier to plant manager growth rate
+            seasonal_modifier = growth_modifiers[self.season]
+            original_growth_rate = self.plant_manager.config["plants"]["growth_rate"]
+            self.plant_manager.config["plants"]["growth_rate"] = original_growth_rate * seasonal_modifier
+            
+            # Update plant manager
+            self.plant_manager.update(1.0)
+            
+            # Add any new plants to game loop
+            for pos, plant in self.plant_manager.plants.items():
+                if plant not in self.plants:
+                    self.add_plant(plant)
+            
+            # Restore original growth rate
+            self.plant_manager.config["plants"]["growth_rate"] = original_growth_rate
 
         # 7. Update vision based on time of day (Moved to the end of step list)
         if old_time_of_day != self.time_of_day or self.current_turn == 1:

@@ -14,6 +14,7 @@ from game.game_loop import GameLoop
 from game.config import Config
 from game.units.unit_types import Predator, Scavenger, Grazer
 from game.plants.plant_types import BasicPlant # Import BasicPlant
+from game.plants.plant_manager import PlantManager
 from game.visualization import Visualization
 # Removed: from web_server import set_game_board
 import sys # Import sys for isatty()
@@ -65,28 +66,16 @@ def setup_game(config):
     for _ in range(unit_counts.get("grazer", 0)):
         place_unit_randomly(Grazer)
     
-    # Place initial plants
-    num_plants = config.get("plants", "initial_count")
+    # Initialize plant manager and generate initial plants
+    plant_manager = PlantManager(board, config.config)
+    plant_manager.generate_initial_plants()
     
-    # Define a simple plant factory. BasePlant requires a position.
-    # place_random_plants will handle the actual random position.
-    # The board's place_object method updates its internal tracking
-    # but does not update the plant's own `position` attribute if it's a complex object.
-    # This is a known limitation for now.
-    def plant_factory():
-        # BasicPlant(position, base_energy, growth_rate, regrowth_time)
-        # Using default values from BasicPlant or arbitrary valid ones for now.
-        # The key is that `place_random_plants` needs a callable that returns a plant instance.
-        # The position passed here is a placeholder.
-        return BasicPlant(position=Position(0,0))
-
-    placed_plant_positions = board.place_random_plants(num_plants, plant_factory)
-
-    # Add placed plants to the game loop
-    for pos in placed_plant_positions:
-        plant_object = board.get_object(pos.x, pos.y)
-        if plant_object: # Ensure a plant was actually placed and retrieved
-            game_loop.add_plant(plant_object)
+    # Add plants to game loop
+    for plant in plant_manager.plants.values():
+        game_loop.add_plant(plant)
+        
+    # Store plant manager reference in game loop for updates
+    game_loop.plant_manager = plant_manager
 
     visualizer = Visualization(board)
     return game_loop, visualizer
