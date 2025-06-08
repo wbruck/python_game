@@ -239,6 +239,27 @@ class Visualization:
         
         return legend
     
+    def _format_unit_list(self) -> str:
+        """Format a list of units with their UUIDs and basic info."""
+        units_info = []
+        
+        for y in range(self.board.height):
+            for x in range(self.board.width):
+                obj = self.board.grid[y][x]
+                if isinstance(obj, Unit):
+                    uuid = getattr(obj, 'uuid', 'N/A')
+                    unit_type = getattr(obj, 'unit_type', 'Unknown')
+                    state = getattr(obj, 'state', 'Unknown')
+                    energy = getattr(obj, 'energy', 0)
+                    
+                    status = "Dead" if not getattr(obj, 'alive', True) else "Alive"
+                    units_info.append(f"[{uuid}] {unit_type} at ({x},{y}) - {state} (E:{energy}) {status}")
+        
+        if units_info:
+            return "\nUnits:\n" + "\n".join(units_info) + "\n"
+        else:
+            return "\nNo units on board\n"
+    
     def render(self) -> None:
         """
         Render the current game state to the terminal if visualization is enabled.
@@ -275,6 +296,9 @@ class Visualization:
         
         # Print legend
         print(self._format_legend())
+        
+        # Print unit list with UUIDs
+        print(self._format_unit_list())
         
         self.frame_count += 1
     
