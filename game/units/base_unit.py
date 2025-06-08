@@ -7,6 +7,13 @@ All other unit types will inherit from this base class.
 from game.board import Position
 from game.plants.base_plant import Plant # Added import
 from typing import Optional, Tuple
+import random
+import string
+
+def generate_unit_uuid() -> str:
+    """Generate a 3-character UUID for units using alphanumeric characters."""
+    characters = string.ascii_uppercase + string.digits
+    return ''.join(random.choices(characters, k=3))
 
 # Predefined unit templates for different roles
 UNIT_TEMPLATES = {
@@ -70,8 +77,9 @@ class Unit:
         self.config = config  # Store the config object
         self.board = board  # Store the board reference
 
-        # Store unit type
+        # Store unit type and generate unique UUID
         self.unit_type = unit_type
+        self.uuid = generate_unit_uuid()
 
         # Load energy costs from config or use defaults
         if config:

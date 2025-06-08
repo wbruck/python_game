@@ -358,6 +358,7 @@ def _get_board_state_and_populate_entity_map(game_loop: GameLoop, game_id: str) 
                 entity_type = "unit"
                 name = getattr(obj, 'unit_type', type(obj).__name__)
                 details = {
+                    "uuid": getattr(obj, 'uuid', None),
                     "health": getattr(obj, 'hp', None),  # Changed from health to hp to match Unit class
                     "energy": getattr(obj, 'energy', None),
                     "state": getattr(obj, 'state', None),
@@ -419,6 +420,7 @@ class UnitStats(BaseModel):
     id: str
     type: str = "unit"
     unit_type: Optional[str] = None
+    uuid: Optional[str] = None
     x: int
     y: int
     hp: Optional[int] = None
@@ -482,6 +484,7 @@ async def get_entity_details(game_id: str, entity_id: str):
         return UnitStats(
             id=entity_id,
             unit_type=getattr(entity_obj, 'unit_type', type(entity_obj).__name__),
+            uuid=getattr(entity_obj, 'uuid', None),
             x=entity_obj.x,
             y=entity_obj.y,
             hp=getattr(entity_obj, 'hp', None),

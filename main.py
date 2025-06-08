@@ -95,21 +95,39 @@ def print_unit_stats(game_loop, current_turn):
     """Prints statistics for each unit."""
     print(f"--- Unit Stats (Turn {current_turn}) ---")
     
-    # First print alive units
-    alive_units = [unit for unit in game_loop.units if unit.alive]
+    # Helper function to check if unit is still on the board
+    def is_unit_on_board(unit):
+        if not game_loop.board.is_valid_position(unit.x, unit.y):
+            return False
+        return game_loop.board.grid[unit.y][unit.x] == unit
+    
+    # Get units that are still relevant to the game (alive or still on board)
+    relevant_units = [unit for unit in game_loop.units if unit.alive or is_unit_on_board(unit)]
+    
+    # Categorize relevant units
+    alive_units = [unit for unit in relevant_units if unit.alive]
+    dead_units = [unit for unit in relevant_units if not unit.alive]
+    
     if alive_units:
         print("\nAlive Units:")
         for unit in alive_units:
-            print(f"  - Type: {unit.unit_type}, Pos: ({unit.x}, {unit.y}), "
+            print(f"  - [{unit.uuid}] Type: {unit.unit_type}, Pos: ({unit.x}, {unit.y}), "
                   f"Energy: {unit.energy}, State: {unit.state}")
     
-    # Then print dead units
-    dead_units = [unit for unit in game_loop.units if not unit.alive]
     if dead_units:
-        print("\nDead Units:")
+        print("\nDead Units (still on board):")
         for unit in dead_units:
-            print(f"  - Type: {unit.unit_type}, Pos: ({unit.x}, {unit.y}), "
-                  f"State: {unit.state}")
+            decay_info = f", Decay: {getattr(unit, 'decay_stage', 'N/A')}" if hasattr(unit, 'decay_stage') else ""
+            print(f"  - [{unit.uuid}] Type: {unit.unit_type}, Pos: ({unit.x}, {unit.y}), "
+                  f"State: {unit.state}{decay_info}")
+    
+    # Show total counts for clarity
+    total_in_game = len(game_loop.units)
+    total_shown = len(relevant_units)
+    fully_decayed = total_in_game - total_shown
+    
+    if fully_decayed > 0:
+        print(f"\nNote: {fully_decayed} fully decayed unit(s) not shown (removed from board)")
     
     print(f"\n--- End Unit Stats ---")
     if sys.stdin.isatty(): # Check if running in an interactive terminal
