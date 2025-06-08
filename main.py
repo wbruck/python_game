@@ -93,7 +93,7 @@ def display_game(game_loop):
 
 def print_unit_stats(game_loop, current_turn):
     """Prints statistics for each unit."""
-    print(f"--- Unit Stats (Turn {current_turn}) [FIXED VERSION] ---")
+    print(f"--- Unit Stats (Turn {current_turn}) ---")
     
     # Helper function to check if unit is still on the board
     def is_unit_on_board(unit):
